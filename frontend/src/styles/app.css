@@ -12,8 +12,7 @@
    - Heeft een stijl niets met dít domein te maken, dan hoort hij in het
      pakket (global.css) en niet hier.
 
-   Dit is een vers scaffold zonder domeinpagina's — voeg hier pas classes toe
-   zodra een echte feature een eigen, niet-generieke stijl nodig heeft. */
+   Domeinklassen hebben het voorvoegsel `.offerte-`. */
 
 /* iOS Safari vergroot uit zichzelf de tekst in blokken die breder zijn dan het
    scherm ("text autosizing"), waardoor cellen in een horizontaal scrollende
@@ -30,3 +29,22 @@ html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
   .login-sso:hover:not(:disabled){color:var(--brand-ink);background:var(--sunken)}
 }
 .login-sso:disabled{opacity:.5;cursor:default}
+
+/* ---- Offerte-conversie (modules/conversie) --------------------------------- */
+
+/* Sleepvlak om het bestandsveld: een echt domein-element (er is geen
+   dropzone in het pakket). Het bestandsveld zelf is Input uit het pakket
+   binnen een Field; dit kader ontvangt alleen de drag & drop. */
+.offerte-dropzone{padding:14px;border:1px dashed var(--border);border-radius:var(--r-m);
+  background:var(--sunken);transition:border-color .15s,background .15s}
+.offerte-dropzone-actief{border-color:var(--brand);border-style:solid;background:var(--brand-l)}
+@media (hover:hover) and (pointer:fine){
+  .offerte-dropzone:hover{border-color:var(--brand)}
+}
+.offerte-bestand{margin-top:8px}
+
+/* Rij tags (lettertypen, status + foutmelding) die mag omlopen. */
+.offerte-lettertypen{display:inline-flex;flex-wrap:wrap;gap:6px;align-items:center}
+
+/* Knoppenrij onder een formulier of resultaat; loopt om op smalle schermen. */
+.offerte-acties{display:flex;flex-wrap:wrap;gap:8px;align-items:center}

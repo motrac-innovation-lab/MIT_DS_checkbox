@@ -19,6 +19,9 @@ export const GELIJKE_WAARDEN = [
   'common:ui.feedbackGeven',
   'common:ui.feedbackTypeLabel',
   'common:ui.feedbackTypeBug',
-  'common:nav.home',
   'common:rollen.admin',
+  // "Download <bestandsnaam>" en het kolomlabel "Status": in beide talen
+  // hetzelfde woord.
+  'common:conversie.resultaat.download',
+  'common:geschiedenis.kolom.status',
 ]

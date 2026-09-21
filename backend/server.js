@@ -5,14 +5,19 @@
 // introspectie-endpoint van Motrac-beheer (POST /api/v1/<slug>/verify met
 // X-Api-Key), zodat rollen hier — en niet alleen in de UI — worden afgedwongen.
 //
-// Vers fleet-scaffold, overgenomen uit het generieke patroon van
-// mit-salessupport (de norm-app) met alle domeinlogica weggelaten. Wat hier
-// staat is de basis die elke fleet-backend deelt (zie CLAUDE.md,
-// "Productie-hardening"): opstartdiagnose, storingsmodus, CORS, rate limiter,
-// bearer-auth-gate, requireAdmin, feedback-doorgifte, logboek. De eerste
-// domeinroute komt in een volgende stap.
+// Basis: het generieke patroon van mit-salessupport (de norm-app) — zie
+// CLAUDE.md, "Productie-hardening": opstartdiagnose, storingsmodus, CORS, rate
+// limiter, bearer-auth-gate, requireAdmin, feedback-doorgifte, logboek.
 //
-// Schema: migrations/0001_init.sql (config), 0002_audit_log.sql. Zelf-migrerend
+// Domein: de offerte-conversie uit het oude repo `esign_motrac` (Java/Spring,
+// hierheen geport, 2026-09-21). Een geüploade .docx wordt voorbewerkt,
+// door LibreOffice naar PDF gerenderd en per checkbox voorzien van een
+// verborgen DocuSign-anker in de tekstlaag (\cb_001\, \cb_002\, …). De
+// hele keten staat in lib/conversie.js; hier alleen de routes eromheen
+// (POST /api/conversies, GET /api/conversies/status, GET /api/conversies).
+//
+// Schema: migrations/0001_init.sql (config), 0002_audit_log.sql,
+// 0003_conversies.sql (logboek van conversies). Zelf-migrerend
 // bij opstarten (zie runMigrations onderaan, vóór app.listen) — het platform
 // draait rechtstreeks `node server.js`, nooit een los migratie-commando.
 import 'dotenv/config'
@@ -22,6 +27,9 @@ import cors from 'cors'
 import rateLimit from 'express-rate-limit'
 import { makeDb } from './db.js'
 import { runMigrations } from './lib/migrate.js'
+import { ConversieFout, MAX_DOCX_BYTES, converteerOfferte } from './lib/conversie.js'
+import { ENGINE as DOCX_PDF_ENGINE, detecteerLibreOffice, engineStatus } from './lib/docxNaarPdf.js'
+import { VEREISTE_LETTERTYPEN, beschikbareLettertypen, fontMappen, ontbrekendeVereisteLettertypen } from './lib/lettertypen.js'
 
 // PLACEHOLDER tot de app in Motrac Toegangsbeheer geregistreerd is. Moet
 // gelijk zijn aan DEFAULT_SLUG in frontend/src/lib/motracAuth.ts en aan de
@@ -78,6 +86,9 @@ const sendErr = (res, err) => res.status(err.status).json(err.body)
 const IN_DOUBT_CODE = 'DB_STATE_UNKNOWN'
 const IN_DOUBT_MESSAGE =
   'De database wisselde tijdens deze bewerking van server. Het is niet vast te stellen of uw wijziging is doorgevoerd — controleer dat eerst en probeer het pas daarna opnieuw.'
+
+// Base64 is 4/3 van de ruwe grootte; afgerond naar boven op hele MB's + 1 MB envelop.
+const CONVERSIE_BODY_LIMIET = `${Math.ceil((MAX_DOCX_BYTES * 4) / 3 / (1024 * 1024)) + 1}mb`
 
 // ---- Auth: token-introspectie bij Motrac-beheer --------------------------
 
@@ -241,6 +252,29 @@ const startupState = {
   fout: missingEnv.length ? `Ontbrekende omgevingsvariabelen: ${missingEnv.join(', ')}` : null,
 }
 
+// Diagnose van de conversie-engine, één keer per worker bij het opstarten en
+// bewust niet afgewacht (geen top-level await, zie boven): /api/_health toont
+// `null` tot de detectie klaar is. Een ontbrekend LibreOffice of ontbrekende
+// DaxPro-bestanden zijn géén reden voor storingsmodus — de rest van de app
+// werkt — maar horen wél in de log en op de statuskaart in de UI.
+let libreOfficeDetectie = null
+let lettertypeDetectie = null
+if (DOCX_PDF_ENGINE === 'soffice') {
+  detecteerLibreOffice().then((lo) => {
+    libreOfficeDetectie = lo
+    if (lo.gevonden) console.log(`LibreOffice gevonden: ${lo.commando} (${lo.versie})`)
+    else console.warn('LibreOffice NIET gevonden — offerte-conversies geven een 503 tot het geïnstalleerd is (zie DEPLOY.md).')
+  }, () => { libreOfficeDetectie = { gevonden: false } })
+} else {
+  libreOfficeDetectie = { gevonden: false, extern: true }
+}
+beschikbareLettertypen().then((bestanden) => {
+  const ontbreekt = ontbrekendeVereisteLettertypen(bestanden)
+  lettertypeDetectie = { aantal: bestanden.length, ontbreekt }
+  console.log(`Lettertypen voor de PDF-render: ${bestanden.length} bestand(en) in ${fontMappen().join(', ')}`)
+  if (ontbreekt.length) console.warn(`Vereiste lettertypen ontbreken (worden door LibreOffice vervangen): ${ontbreekt.join(', ')} — zie backend/fonts/README.md`)
+}, (e) => { lettertypeDetectie = { aantal: 0, ontbreekt: VEREISTE_LETTERTYPEN }; console.error('Lettertypen inlezen mislukt:', e) })
+
 // Vóór de rate limiter, de auth-middleware en de 404-afhandeling gemount,
 // zodat dit endpoint ook in storingsmodus altijd antwoordt.
 app.get('/api/_health', (req, res) => {
@@ -261,6 +295,16 @@ app.get('/api/_health', (req, res) => {
         return u.protocol === 'https:' || u.protocol === 'http:' ? u.host : 'onverwacht protocol'
       } catch { return 'GEEN GELDIGE URL — waarschijnlijk staat hier een verkeerde waarde in' }
     })(),
+    // De render-engine van de offerte-conversie. Alleen booleans/aantallen —
+    // dit endpoint is onbeveiligd. Zonder LibreOffice start de app gewoon
+    // (storingsmodus is voor de basis, niet voor het domein), maar elke
+    // conversie geeft dan een 503 — en dat is hier al vóór het inloggen te zien.
+    conversie: {
+      engine: DOCX_PDF_ENGINE,
+      libreofficeGevonden: libreOfficeDetectie ? libreOfficeDetectie.gevonden : null,
+      lettertypeBestanden: lettertypeDetectie ? lettertypeDetectie.aantal : null,
+      vereisteLettertypenOntbreken: lettertypeDetectie ? lettertypeDetectie.ontbreekt : null,
+    },
   })
 })
 
@@ -332,6 +376,10 @@ app.use('/api', apiLimiter)
 // slaat een al geparste body over, dus wie het eerst parseert bepaalt de
 // limiet voor dat pad.
 app.use('/api/feedback', express.json({ limit: '12mb' }))
+// De offerte-upload reist als base64 in een JSON-body (zodat de ene
+// fetch-helper van de frontend, lib/api.ts, onaangepast blijft): 25 MB .docx
+// wordt ~34 MB base64, plus een marge voor de envelop.
+app.use('/api/conversies', express.json({ limit: CONVERSIE_BODY_LIMIET }))
 // Klein en generiek: voorkomt dat een ongeauthenticeerde aanvrager tot 12MB
 // laat parsen vóórdat de auth-check hieronder ooit draait.
 app.use(express.json({ limit: '256kb' }))
@@ -408,6 +456,129 @@ app.put('/api/config/:key', requireAdmin, ah(async (req, res) => {
   res.json({ key, value })
 }))
 
+// ---- Domein: offerte-conversie (DOCX → PDF met DocuSign-ankers) ---------------
+
+// Status van de render-engine en de lettertypen, voor de statuskaart in de UI.
+// Bearer (elke rol): de gebruiker moet vóór het uploaden kunnen zien dat de
+// server het kan verwerken en of DaxPro aanwezig is.
+app.get('/api/conversies/status', ah(async (req, res) => {
+  const [engine, bestanden] = await Promise.all([engineStatus(), beschikbareLettertypen()])
+  res.json({
+    engine: engine.engine,
+    beschikbaar: engine.beschikbaar,
+    libreoffice: engine.libreoffice ? { versie: engine.libreoffice.versie } : null,
+    lettertypen: {
+      vereist: VEREISTE_LETTERTYPEN,
+      ontbreekt: ontbrekendeVereisteLettertypen(bestanden),
+      bestanden: bestanden.map((b) => ({ bestand: b.bestand, families: b.families })),
+    },
+    maxDocxBytes: MAX_DOCX_BYTES,
+  })
+}))
+
+// De conversie zelf. Body: { bestandsnaam, docxBase64 }; antwoord: de PDF als
+// base64 plus het aantal gevonden checkboxen en de lettertype-vergelijking.
+// Elke uitkomst (ook een mislukking) komt in het conversies-logboek, zonder
+// documentinhoud.
+app.post('/api/conversies', ah(async (req, res) => {
+  const bestandsnaam = typeof req.body?.bestandsnaam === 'string' ? req.body.bestandsnaam : ''
+  const docxBase64 = typeof req.body?.docxBase64 === 'string' ? req.body.docxBase64 : ''
+  const start = Date.now()
+
+  let docx = null
+  if (docxBase64) {
+    // Strikt decoderen: Buffer.from negeert ongeldige tekens stilzwijgend, en
+    // een half gedecodeerd bestand geeft verderop een onbegrijpelijke fout.
+    if (/^[A-Za-z0-9+/]*={0,2}$/.test(docxBase64)) docx = new Uint8Array(Buffer.from(docxBase64, 'base64'))
+  }
+
+  try {
+    if (!docx) throw new ConversieFout('VALIDATION', 'Selecteer eerst een .docx-bestand.', { status: 400 })
+    const resultaat = await converteerOfferte({ bestandsnaam, docx })
+    await registreerConversie(req, {
+      bestandsnaam: resultaat.bestandsnaam.replace(/\.pdf$/i, '.docx'),
+      status: 'geslaagd',
+      aantalCheckboxen: resultaat.aantalCheckboxen,
+      duurMs: resultaat.duurMs,
+      engine: resultaat.engine,
+      lettertypenVervangen: resultaat.lettertypen.vervangen,
+    })
+    res.json({
+      bestandsnaam: resultaat.bestandsnaam,
+      aantalCheckboxen: resultaat.aantalCheckboxen,
+      pdfBase64: Buffer.from(resultaat.pdf).toString('base64'),
+      lettertypen: resultaat.lettertypen,
+      engine: resultaat.engine,
+      duurMs: resultaat.duurMs,
+      symbolenVervangen: resultaat.symbolenVervangen,
+      ankersGeschat: resultaat.ankersGeschat,
+    })
+  } catch (e) {
+    if (!(e instanceof ConversieFout)) throw e
+    // Technische details (stderr van soffice) alleen in de log, nooit in het antwoord.
+    console.warn(`Conversie mislukt (${e.code}): ${e.message}${e.detail ? `\n${e.detail}` : ''}`)
+    if (e.code !== 'VALIDATION') {
+      await registreerConversie(req, {
+        bestandsnaam: bestandsnaam || '(onbekend)',
+        status: 'mislukt',
+        duurMs: Date.now() - start,
+        engine: DOCX_PDF_ENGINE,
+        foutcode: e.code,
+        foutmelding: e.message,
+      })
+    }
+    sendErr(res, apiError(e.code, e.message, e.status))
+  }
+}))
+
+// Schrijft een regel in het conversies-logboek (migrations/0003). Zachtjes:
+// de conversie zelf is al klaar (of al mislukt), een kapotte logregel mag de
+// uitkomst niet veranderen.
+async function registreerConversie(req, r) {
+  try {
+    await db
+      .prepare('INSERT INTO conversies (actor_naam, actor_email, bestandsnaam, status, aantal_checkboxen, duur_ms, engine, lettertypen_vervangen, foutcode, foutmelding) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .bind(
+        req.auth.user.naam, req.auth.user.email ?? null, r.bestandsnaam.slice(0, 500), r.status,
+        r.aantalCheckboxen ?? null, r.duurMs ?? null, r.engine ?? null,
+        JSON.stringify(r.lettertypenVervangen ?? []), r.foutcode ?? null, r.foutmelding?.slice(0, 1000) ?? null,
+      )
+      .run()
+  } catch (e) {
+    console.error('Conversie-logregel schrijven mislukt (conversie zelf is wél afgehandeld):', e)
+  }
+}
+
+// Het conversies-logboek, server-side gepagineerd — beheerder-only, net als
+// het audit-logboek: het bevat bestandsnamen en namen van collega's.
+app.get('/api/conversies', requireAdmin, ah(async (req, res) => {
+  const { page, pageSize } = paginering(req)
+  const [{ totaal }] = (await db.prepare('SELECT count(*)::int AS totaal FROM conversies').all()).results
+  const { results } = await db
+    .prepare('SELECT id, aangemaakt_op, actor_naam, actor_email, bestandsnaam, status, aantal_checkboxen, duur_ms, engine, lettertypen_vervangen, foutcode, foutmelding FROM conversies ORDER BY aangemaakt_op DESC, id DESC LIMIT ? OFFSET ?')
+    .bind(pageSize, (page - 1) * pageSize)
+    .all()
+  res.json({
+    items: results.map((r) => ({
+      id: r.id,
+      aangemaaktOp: r.aangemaakt_op,
+      actorNaam: r.actor_naam,
+      actorEmail: r.actor_email,
+      bestandsnaam: r.bestandsnaam,
+      status: r.status,
+      aantalCheckboxen: r.aantal_checkboxen,
+      duurMs: r.duur_ms,
+      engine: r.engine,
+      lettertypenVervangen: (() => { try { return JSON.parse(r.lettertypen_vervangen) } catch { return [] } })(),
+      foutcode: r.foutcode,
+      foutmelding: r.foutmelding,
+    })),
+    page,
+    pageSize,
+    totaal,
+  })
+}))
+
 // Onbekend /api/*-endpoint (geen van de routes hierboven matchte).
 app.use('/api', (req, res) => {
   res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Onbekend endpoint.' } })
@@ -424,6 +595,14 @@ app.use((err, req, res, next) => {
   // en dat is hier juist de gevaarlijke actie.
   if (err?.failoverInDoubt) {
     return res.status(500).json({ error: { code: IN_DOUBT_CODE, message: IN_DOUBT_MESSAGE } })
+  }
+  // body-parser: JSON-body boven de limiet van het pad (bv. een .docx boven de
+  // 25 MB). Een nette 413 in de fleet-envelop i.p.v. een 500 "er ging iets mis".
+  if (err?.type === 'entity.too.large') {
+    return res.status(413).json({ error: { code: 'VALIDATION', message: 'Het bestand is te groot voor deze upload.' } })
+  }
+  if (err?.type === 'entity.parse.failed') {
+    return res.status(400).json({ error: { code: 'VALIDATION', message: 'De aanvraag bevat geen geldige JSON.' } })
   }
   res.status(500).json({ error: { code: 'INTERNAL', message: 'Er ging iets mis; probeer het later opnieuw.' } })
 })

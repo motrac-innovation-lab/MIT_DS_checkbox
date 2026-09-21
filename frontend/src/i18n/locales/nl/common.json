@@ -91,7 +91,8 @@
     "titel": "Sales offerte converter"
   },
   "nav": {
-    "home": "Start"
+    "converteren": "Converteren",
+    "geschiedenis": "Geschiedenis"
   },
   "algemeen": {
     "laden": "Laden…",
@@ -104,10 +105,71 @@
     "gebruiker": "Gebruiker",
     "admin": "Admin"
   },
-  "home": {
-    "welkom": "Welkom bij de Sales offerte converter. De basis van de app staat; de eerste functie volgt in de volgende stap.",
-    "ingelogdAls": "Ingelogd als {{naam}} ({{rol}})",
-    "volgendeStapTitel": "Wat er nog komt",
-    "volgendeStapTekst": "Hier komt straks het omzetten van sales-offertes. Tot die tijd is dit een werkend, opstartbaar skelet op de gedeelde Motrac-UI-laag."
+  "conversie": {
+    "titel": "Offerte omzetten voor DocuSign",
+    "status": {
+      "titel": "Serverstatus",
+      "gereed": "De server kan documenten omzetten (engine: {{engine}}).",
+      "gereedMetVersie": "De server kan documenten omzetten — LibreOffice {{versie}}.",
+      "engineOntbreektTitel": "Omzetten is nu niet mogelijk",
+      "engineOntbreekt": "De render-engine ({{engine}}) is op de server niet beschikbaar. Zonder LibreOffice kan er geen PDF gemaakt worden — meld dit bij de beheerder (zie DEPLOY.md).",
+      "lettertypen": "Lettertypen op de server",
+      "ontbreekt": "ontbreekt",
+      "fontsOntbrekenTitel": "Niet alle offerte-lettertypen staan op de server",
+      "fontsOntbreken": "Ontbreekt: {{fonts}}. LibreOffice vervangt deze door een ander lettertype en de layout van de PDF kan verschuiven. Zet de fontbestanden in backend/fonts/ (zie de README daar)."
+    },
+    "upload": {
+      "titel": "Word-document",
+      "veld": "Kies een .docx-bestand of sleep het hierheen",
+      "hint": "Alleen .docx uit de configurator, maximaal 25 MB. Het document wordt niet op de server bewaard.",
+      "gekozen": "Gekozen: {{naam}} ({{grootte}})"
+    },
+    "knop": "Converteren",
+    "bezig": "Bezig met omzetten…",
+    "nieuw": "Nieuw document",
+    "fout": {
+      "titel": "Omzetten is niet gelukt",
+      "geenDocx": "Alleen .docx-bestanden worden ondersteund.",
+      "teGroot": "Het bestand is groter dan {{max}}.",
+      "onbekend": "Er ging iets mis bij het omzetten. Probeer het opnieuw.",
+      "engineHint": "Neem contact op met de beheerder."
+    },
+    "resultaat": {
+      "titel": "PDF gereed",
+      "checkboxen": "Checkboxen gevonden",
+      "duur": "Duur",
+      "symbolen": "Symbolen omgezet",
+      "symbolenSub": "Wingdings-vakjes → ☐",
+      "geenCheckboxen": "Er zijn geen checkboxen (☐) gevonden. De PDF is wel gemaakt, maar DocuSign krijgt geen aanvinkvelden. Controleer of het document het vakje ☐ of het Wingdings 2-symbool gebruikt.",
+      "geschat": "Bij {{aantal}} anker(s) stond het vakje midden in een tekstregel; de positie is geschat. Controleer die velden in DocuSign.",
+      "lettertypen": "Lettertypen in het document",
+      "geenLettertypen": "geen expliciete lettertypen",
+      "vervangen": "vervangen",
+      "vervangenTitel": "Lettertype vervangen",
+      "vervangenTekst": "LibreOffice had {{fonts}} niet en heeft een ander lettertype gebruikt. De PDF kan afwijken van het Word-document. Zet de fontbestanden op de server (backend/fonts/).",
+      "download": "Download {{naam}}",
+      "apexHint": "De PDF bevat per checkbox een verborgen anker (\\cb_001\\, \\cb_002\\, …) in de tekstlaag. Salesforce Apex maakt daar de DocuSign-velden van; de bestaande ankers (\\i1\\, \\s2\\, \\n2\\, \\ref2\\) blijven ongewijzigd."
+    }
+  },
+  "geschiedenis": {
+    "titel": "Geschiedenis van conversies",
+    "uitleg": "Elke omzetting wordt hier vastgelegd: wie, wanneer, welk bestand, hoeveel checkboxen en of een lettertype is vervangen. De documenten zelf worden niet bewaard.",
+    "aantal": "{{aantal}} conversie(s) in totaal",
+    "leeg": "Nog geen conversies uitgevoerd.",
+    "geenVervangen": "geen",
+    "status": {
+      "geslaagd": "Geslaagd",
+      "mislukt": "Mislukt"
+    },
+    "kolom": {
+      "datum": "Datum",
+      "bestand": "Bestand",
+      "gebruiker": "Gebruiker",
+      "status": "Status",
+      "checkboxen": "Checkboxen",
+      "duur": "Duur",
+      "lettertypen": "Vervangen lettertypen",
+      "fout": "Fout"
+    }
   }
 }

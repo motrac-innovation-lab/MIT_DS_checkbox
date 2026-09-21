@@ -57,6 +57,7 @@ describe('requireAdmin', { skip: slaOverZonderDb }, () => {
   const BEHEERDERROUTES = [
     ['GET', '/api/audit-log'],
     ['PUT', '/api/config/iets'],
+    ['GET', '/api/conversies'],
   ]
 
   for (const [methode, pad] of BEHEERDERROUTES) {
