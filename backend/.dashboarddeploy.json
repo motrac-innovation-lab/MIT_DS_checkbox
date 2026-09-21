@@ -1,0 +1,5 @@
+{
+  "dashboardUrl": "https://control.motrac.app",
+  "buildDir": "dist",
+  "buildCommand": "npm run build"
+}

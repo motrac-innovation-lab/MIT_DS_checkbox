@@ -1,0 +1,30 @@
+{
+  "name": "mit-ds-checkbox-frontend",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "npm run check:i18n && npm run check:fleet-ui && tsc --noEmit && vite build",
+    "check:fleet-ui": "motrac-ui-check --streng",
+    "check:i18n": "node scripts/check-i18n-parity.mjs && node scripts/check-i18n-values.mjs",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@motrac/auth-client": "file:../../motrac-auth-client",
+    "@motrac/template-ui": "file:../../motrac-template-ui",
+    "i18next": "^23.16.8",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-i18next": "^15.7.4",
+    "react-router-dom": "^6.26.2"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.11",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.2",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.9"
+  }
+}
