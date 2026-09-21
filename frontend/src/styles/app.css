@@ -1,0 +1,32 @@
+/* App-specifieke stijlen voor de Sales offerte converter, bovenop de gedeelde
+   tokens en componentstijlen van @motrac/template-ui/style.css.
+
+   REGELS (zie CLAUDE.md, "Beschermde basis"):
+   - Nooit een klasse herdefiniëren die global.css van het pakket al bezit:
+     deze stylesheet laadt ná style.css en overstemt hem dan in élke
+     pakket-component. `motrac-ui-check --streng` (controle 9) faalt daar de
+     build op.
+   - Elke :hover in @media (hover:hover) and (pointer:fine) (controle 6).
+   - Geen font-size onder 12px buiten @media print (controle 7).
+   - Kleuren altijd via var(--…), nooit een hex (controle 5 kijkt in .tsx).
+   - Heeft een stijl niets met dít domein te maken, dan hoort hij in het
+     pakket (global.css) en niet hier.
+
+   Dit is een vers scaffold zonder domeinpagina's — voeg hier pas classes toe
+   zodra een echte feature een eigen, niet-generieke stijl nodig heeft. */
+
+/* iOS Safari vergroot uit zichzelf de tekst in blokken die breder zijn dan het
+   scherm ("text autosizing"), waardoor cellen in een horizontaal scrollende
+   tabel overlopen. Op html i.p.v. op de tabel, want de inflatie wordt bepaald
+   door het blok waarin de tekst staat. Zoomen met twee vingers blijft werken. */
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+
+/* Secundaire actie op LoginPage/ChangePasswordPage: de SSO-handoff starten,
+   resp. terug naar inloggen. Eigen naam (geen `.hint`-knop), want het is een
+   knop en geen tekst. */
+.login-sso{width:100%;padding:8px;font-size:13px;font-weight:600;color:var(--muted);text-align:center;
+  border-radius:var(--r-m);transition:color .15s,background .15s}
+@media (hover:hover) and (pointer:fine){
+  .login-sso:hover:not(:disabled){color:var(--brand-ink);background:var(--sunken)}
+}
+.login-sso:disabled{opacity:.5;cursor:default}

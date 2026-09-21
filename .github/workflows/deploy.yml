@@ -1,0 +1,168 @@
+name: Deploy naar Motrac IT Dashboard
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+# Voorkomt dat twee deploys tegelijk dezelfde staging op control.motrac.app
+# overschrijven; een tweede run wacht in de wachtrij i.p.v. te annuleren.
+concurrency:
+  group: mit-ds-checkbox-dashboard-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+# INSCHAKELEN: zolang de twee dashboard-applicaties (backend + frontend) nog
+# niet bestaan, zouden de deploy-jobs bij elke push op main rood worden op
+# ontbrekende secrets/variabelen. Ze draaien daarom pas als de repository-
+# variabele DEPLOY_INGESCHAKELD op "true" staat (Settings > Secrets and
+# variables > Actions > Variables), of bij een handmatige workflow_dispatch.
+# Zie DEPLOY.md voor de volledige checklist (secrets, variabelen, volgorde).
+jobs:
+  # Poort vóór elke deploy: dezelfde suite als op een pull request, aangeroepen
+  # in plaats van gekopieerd (zie .github/workflows/tests.yml).
+  tests:
+    name: Tests
+    uses: ./.github/workflows/tests.yml
+    secrets: inherit
+
+  deploy-backend:
+    name: Deploy backend (node_upload)
+    needs: tests
+    if: ${{ vars.DEPLOY_INGESCHAKELD == 'true' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    # Breekt een job af die blijft hangen in de poll-lus van
+    # dashboard-deploy.mjs; zonder dit loopt hij door tot GitHub's 6 uur.
+    timeout-minutes: 15
+    steps:
+      - name: Checkout MIT_DS_checkbox
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci --no-audit --no-fund --prefer-offline
+
+      # backend/scripts/build.mjs stelt backend/dist/ samen (server.js, db.js,
+      # lib/, migrations/, een uitgeklede package.json) — nooit de rauwe
+      # backend/-map met een eventuele lokale .env erin.
+      - name: Build backend
+        working-directory: backend
+        run: npm run build
+
+      - name: Deploy backend to Motrac IT Dashboard
+        working-directory: backend
+        env:
+          DASHBOARD_DEPLOY_TOKEN: ${{ secrets.BACKEND_DASHBOARD_DEPLOY_TOKEN }}
+        run: node ../scripts/dashboard-deploy.mjs --no-build --message "GitHub Actions deploy ${{ github.sha }} (${{ github.actor }})"
+
+  deploy-frontend:
+    name: Deploy frontend (static_upload)
+    needs: tests
+    if: ${{ vars.DEPLOY_INGESCHAKELD == 'true' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    # Drie `npm ci`'s (twee siblings + de frontend) en een Vite-build: ruimer
+    # dan de backend-job, zodat een trage registry geen valse rode oplevert.
+    timeout-minutes: 30
+    steps:
+      - name: Checkout MIT_DS_checkbox
+        uses: actions/checkout@v4
+        with:
+          path: MIT_DS_checkbox
+
+      # frontend/package.json hangt via "file:../../motrac-auth-client" en
+      # "file:../../motrac-template-ui" af van twee andere private fleet-repo's,
+      # als sibling-mappen — precies zoals lokaal in C:\DEV. Deze stappen
+      # zetten diezelfde structuur neer in de runner. FLEET_REPO_READ_TOKEN
+      # moet een PAT/App-token met leestoegang tot beide repo's zijn; het
+      # standaard GITHUB_TOKEN kan geen andere privérepo's uitchecken.
+      - name: Checkout sibling package motrac-auth-client
+        uses: actions/checkout@v4
+        with:
+          repository: motrac-innovation-lab/motrac-auth-client
+          token: ${{ secrets.FLEET_REPO_READ_TOKEN }}
+          path: motrac-auth-client
+
+      # motrac-template-ui is gepind op `main` — de enige langlevende branch
+      # daar (zie de CLAUDE.md van dat repo). Het pin staat op TWEE plekken
+      # (deploy.yml én tests.yml): werk ze altijd samen bij.
+      - name: Checkout sibling package motrac-template-ui
+        uses: actions/checkout@v4
+        with:
+          repository: motrac-innovation-lab/motrac-template-ui
+          ref: main
+          token: ${{ secrets.FLEET_REPO_READ_TOKEN }}
+          path: motrac-template-ui
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Cache npm-downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: npm-frontend-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            npm-frontend-${{ runner.os }}-
+
+      - name: Build sibling package motrac-auth-client
+        working-directory: motrac-auth-client
+        run: |
+          npm ci --no-audit --no-fund --prefer-offline
+          npm run build
+
+      # build:lib, niet build: dat laatste is de demo-app van het pakket, niet
+      # de importeerbare library in dist-lib/.
+      - name: Build sibling package motrac-template-ui
+        working-directory: motrac-template-ui
+        run: |
+          npm ci --no-audit --no-fund --prefer-offline
+          npm run build:lib
+
+      - name: Install frontend dependencies
+        working-directory: MIT_DS_checkbox/frontend
+        run: npm ci --no-audit --no-fund --prefer-offline
+
+      # `npm run build` is ook de i18n-check, de fleet-UI-poort en de
+      # typecheck (zie frontend/package.json).
+      #
+      # De VITE_*-waarden zijn geen secrets (publieke URL's) en komen uit de
+      # repository-variabelen (Settings > Secrets and variables > Actions >
+      # Variables). Vite bakt ze tijdens deze build in de bundel; ontbreken ze,
+      # dan bouwt de frontend met een lege API-URL en blijft de app na inloggen
+      # hangen — vandaar de harde controle vooraf.
+      - name: Controleer de VITE_*-variabelen
+        env:
+          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
+          VITE_MOTRAC_AUTH_URL: ${{ vars.VITE_MOTRAC_AUTH_URL }}
+          VITE_MOTRAC_AUTH_SLUG: ${{ vars.VITE_MOTRAC_AUTH_SLUG }}
+        run: |
+          ontbreekt=0
+          for v in VITE_API_BASE_URL VITE_MOTRAC_AUTH_URL VITE_MOTRAC_AUTH_SLUG; do
+            if [ -z "${!v}" ]; then echo "::error::Repository-variabele $v ontbreekt (zie DEPLOY.md)."; ontbreekt=1; fi
+          done
+          exit $ontbreekt
+
+      - name: Build frontend
+        working-directory: MIT_DS_checkbox/frontend
+        env:
+          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
+          VITE_MOTRAC_AUTH_URL: ${{ vars.VITE_MOTRAC_AUTH_URL }}
+          VITE_MOTRAC_AUTH_SLUG: ${{ vars.VITE_MOTRAC_AUTH_SLUG }}
+        run: npm run build
+
+      - name: Deploy frontend to Motrac IT Dashboard
+        working-directory: MIT_DS_checkbox/frontend
+        env:
+          DASHBOARD_DEPLOY_TOKEN: ${{ secrets.FRONTEND_DASHBOARD_DEPLOY_TOKEN }}
+        run: node ../scripts/dashboard-deploy.mjs --no-build --message "GitHub Actions deploy ${{ github.sha }} (${{ github.actor }})"

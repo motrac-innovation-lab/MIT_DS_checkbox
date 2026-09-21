@@ -1,0 +1,188 @@
+name: Tests
+
+# Draait op elke pull request, en wordt door deploy.yml aangeroepen
+# (workflow_call) zodat er nooit iets naar het dashboard gaat wat niet eerst
+# groen was. Bewust GEEN push-trigger erbij: main loopt al via deploy.yml, en op
+# een PR-branch zou elke commit de suite dan twee keer draaien.
+#
+# Zelfde opbouw als mit-salessupport/.github/workflows/tests.yml (de norm-app
+# van de fleet) — wijk hier niet van af zonder dat daar ook te doen.
+on:
+  workflow_call: {}
+  pull_request: {}
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Backend (node:test + Postgres)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    # De DB-tests (migraties, auth-grens, storingsmodus) draaien tegen een
+    # échte Postgres en niet tegen een stub. Zonder deze service slaan ze
+    # zichzelf over (zie backend/test/helpers/postgres.js) en zou CI groen zijn
+    # zonder ze ooit gedraaid te hebben — vandaar de controle op "# skipped 0".
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Node 22: het glob-patroon van `node --test`. De deploy-jobs draaien op
+      # de versie die het serverpark draait; dit is alleen de testomgeving.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci --no-audit --no-fund --prefer-offline
+
+      - name: Run backend tests
+        working-directory: backend
+        env:
+          TEST_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/postgres
+        run: |
+          set -o pipefail
+          npm test 2>&1 | tee "$RUNNER_TEMP/testuitvoer.txt"
+          overgeslagen=$(grep '^# skipped' "$RUNNER_TEMP/testuitvoer.txt" | tail -1)
+          echo "$overgeslagen"
+          if [ "$overgeslagen" != "# skipped 0" ]; then
+            echo "::error::Er zijn tests overgeslagen — draait de Postgres-service en staat TEST_DATABASE_URL goed?"
+            exit 1
+          fi
+
+  frontend:
+    name: Frontend (i18n-pariteit)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # De i18n-scripts zijn dependency-vrij, dus hier is géén npm install
+      # nodig — die kan in frontend/ alleen mét de twee sibling-repo's (zie
+      # de typecheck-job hieronder).
+      - name: i18n-controles (pariteit + onvertaalde waarden)
+        working-directory: frontend
+        run: npm run check:i18n
+
+  # De typecheck en de fleet-UI-poort hebben de twee sibling-repo's nodig
+  # (@motrac/auth-client en @motrac/template-ui zijn file:-dependencies). Zonder
+  # het FLEET_REPO_READ_TOKEN-secret (fork-PR) kan die checkout niet, en dan is
+  # dit een overgeslagen job in plaats van een valse rode — vandaar de guard.
+  typecheck:
+    name: Frontend typecheck + fleet-UI-poort
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Is FLEET_REPO_READ_TOKEN beschikbaar?
+        id: secret
+        env:
+          TOKEN: ${{ secrets.FLEET_REPO_READ_TOKEN }}
+        run: |
+          if [ -n "$TOKEN" ]; then echo 'aanwezig=ja' >> "$GITHUB_OUTPUT"
+          else
+            echo 'aanwezig=nee' >> "$GITHUB_OUTPUT"
+            echo "::warning::FLEET_REPO_READ_TOKEN ontbreekt (fork-PR?) — typecheck overgeslagen."
+          fi
+
+      - name: Checkout MIT_DS_checkbox
+        if: steps.secret.outputs.aanwezig == 'ja'
+        uses: actions/checkout@v4
+        with:
+          path: MIT_DS_checkbox
+
+      # Dezelfde sibling-structuur als deploy.yml zet, en om dezelfde reden:
+      # frontend/package.json hangt via "file:../../…" af van twee andere private
+      # repo's in deze fleet. De pin op motrac-template-ui staat op TWEE plekken
+      # (hier en in deploy.yml) — werk ze altijd samen bij.
+      - name: Checkout sibling package motrac-auth-client
+        if: steps.secret.outputs.aanwezig == 'ja'
+        uses: actions/checkout@v4
+        with:
+          repository: motrac-innovation-lab/motrac-auth-client
+          token: ${{ secrets.FLEET_REPO_READ_TOKEN }}
+          path: motrac-auth-client
+
+      - name: Checkout sibling package motrac-template-ui
+        if: steps.secret.outputs.aanwezig == 'ja'
+        uses: actions/checkout@v4
+        with:
+          repository: motrac-innovation-lab/motrac-template-ui
+          ref: main
+          token: ${{ secrets.FLEET_REPO_READ_TOKEN }}
+          path: motrac-template-ui
+
+      # Node 20, gelijk aan de deploy-job: de typecheck moet falen en slagen op
+      # dezelfde versie als de build die er straks echt uit moet komen.
+      - name: Setup Node.js
+        if: steps.secret.outputs.aanwezig == 'ja'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # actions/cache en niet `cache: npm` op setup-node: die wil expliciete
+      # lockfile-paden en laat de job falen als er één ontbreekt — twee van de
+      # drie lockfiles staan in andere repo's.
+      - name: Cache npm-downloads
+        if: steps.secret.outputs.aanwezig == 'ja'
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: npm-typecheck-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            npm-typecheck-${{ runner.os }}-
+
+      - name: Build sibling package motrac-auth-client
+        if: steps.secret.outputs.aanwezig == 'ja'
+        working-directory: motrac-auth-client
+        run: |
+          npm ci --no-audit --no-fund --prefer-offline
+          npm run build
+
+      # build:lib en niet build — die laatste levert de demo-app-bundel, niet de
+      # importeerbare library in dist-lib/ waar de "exports" van dat package
+      # naar wijzen.
+      - name: Build sibling package motrac-template-ui
+        if: steps.secret.outputs.aanwezig == 'ja'
+        working-directory: motrac-template-ui
+        run: |
+          npm ci --no-audit --no-fund --prefer-offline
+          npm run build:lib
+
+      - name: Install frontend dependencies
+        if: steps.secret.outputs.aanwezig == 'ja'
+        working-directory: MIT_DS_checkbox/frontend
+        run: npm ci --no-audit --no-fund --prefer-offline
+
+      - name: Typecheck
+        if: steps.secret.outputs.aanwezig == 'ja'
+        working-directory: MIT_DS_checkbox/frontend
+        run: npm run typecheck
+
+      # De fleet-UI-poort (motrac-ui-check --streng) hoort op een PR al rood te
+      # worden, niet pas in de deploy: in mit-salessupport bleef een kapotte
+      # build drie deploys lang onopgemerkt omdat de testjob hem niet draaide.
+      - name: Fleet-UI-poort
+        if: steps.secret.outputs.aanwezig == 'ja'
+        working-directory: MIT_DS_checkbox/frontend
+        run: npm run check:fleet-ui
