@@ -16,8 +16,10 @@ import { useAuth } from './context/AuthContext'
 import { SUPPORTED_LANGUAGES } from './i18n/languages'
 import { setLanguage } from './i18n'
 import { verstuurFeedback } from './lib/feedback'
+import { DataProviderContext } from './context/DataContext'
 import { LoginPage } from './modules/auth/LoginPage'
-import { HomePage } from './modules/home/HomePage'
+import { ConversiePage } from './modules/conversie/ConversiePage'
+import { GeschiedenisPage } from './modules/geschiedenis/GeschiedenisPage'
 
 /**
  * BESCHERMD (zie CLAUDE.md): geeft de vertaalde teksten die @motrac/template-ui
@@ -69,8 +71,9 @@ export default function App() {
     <UiTekstBrug>
       <Routes>
         <Route path="/login" element={session ? <Navigate to="/" replace /> : <LoginPage />} />
-        {/* Elke ingelogde rol mag naar binnen — er zijn nog geen rolspecifieke
-            schermen; voeg rol-guards hier toe zodra dat nodig is. Wildcard:
+        {/* Elke ingelogde rol mag naar binnen; het enige rolspecifieke scherm
+            (het conversies-logboek) wordt in HomeShell alleen voor admin
+            bedraad — de echte grens is requireAdmin in de backend. Wildcard:
             HomeShell rendert zijn eigen geneste <Routes>. */}
         <Route path="/*" element={session ? <HomeShell /> : <Navigate to="/login" replace />} />
       </Routes>
@@ -91,11 +94,16 @@ function HomeShell() {
   // widget opengaat (er is bewust géén <Route> voor dat pad).
   const { routesLocation } = useFeedbackPad()
 
+  const isAdmin = session?.role === 'admin'
+
   // Geef een tab een ECHT pad, nooit "/": NavLink markeert "/" alleen bij een
   // exacte match, dus een starttab op "/" licht niet op na een verversing.
-  // Vandaar /start met een redirect vanaf /.
+  // Vandaar /converteren met een redirect vanaf /.
   const tabs: Tab[] = [
-    { to: '/start', label: t('nav.home'), icon: 'home' },
+    { to: '/converteren', label: t('nav.converteren'), icon: 'file-text' },
+    // Het logboek van conversies is beheerder-only (server-side afgedwongen
+    // door requireAdmin; deze tab is alleen cosmetiek).
+    ...(isAdmin ? [{ to: '/geschiedenis', label: t('nav.geschiedenis'), icon: 'history' } as Tab] : []),
     // Alleen op mobiel: daar vervangt dit menu-item de zwevende support-pil.
     ...(isMobiel ? [feedbackMenuTab(t('ui.feedback'))] : []),
   ]
@@ -109,11 +117,16 @@ function HomeShell() {
         onLogout={logout}
         acties={<TaalKiezer />}
       >
-        <Routes location={routesLocation}>
-          <Route path="/" element={<Navigate to="/start" replace />} />
-          <Route path="/start" element={<HomePage />} />
-          <Route path="*" element={<Navigate to="/start" replace />} />
-        </Routes>
+        {/* De datalaag hangt hier, binnen de ingelogde shell, en niet in
+            main.tsx: de provider-volgorde daar is beschermde fleet-basis. */}
+        <DataProviderContext>
+          <Routes location={routesLocation}>
+            <Route path="/" element={<Navigate to="/converteren" replace />} />
+            <Route path="/converteren" element={<ConversiePage />} />
+            <Route path="/geschiedenis" element={isAdmin ? <GeschiedenisPage /> : <Navigate to="/converteren" replace />} />
+            <Route path="*" element={<Navigate to="/converteren" replace />} />
+          </Routes>
+        </DataProviderContext>
       </AppShell>
       <FeedbackWidget verstuur={verstuurFeedback} mobielInMenu />
     </>

@@ -24,7 +24,7 @@ test('migraties zijn idempotent: drie keer draaien slaagt', { skip: slaOverZonde
 
   const rijen = await sql`SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'`
   const tabellen = new Set(rijen.map((r) => r.table_name))
-  for (const tabel of ['config', 'audit_log']) {
+  for (const tabel of ['config', 'audit_log', 'conversies']) {
     assert.ok(tabellen.has(tabel), `tabel ${tabel} ontbreekt na migreren`)
   }
 })

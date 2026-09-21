@@ -13,9 +13,12 @@ fleet, met `mit-salessupport` als norm-app: centrale login via Motrac-beheer
 de Support/feedback-module en een eigen Node/Express + Postgres-backend die de
 rollen server-side afdwingt.
 
-**Er is nog geen domein.** Wat er staat is een werkend, opstartbaar skelet;
-het omzetten van sales-offertes (de eerste functie) komt in een volgende stap
-en de specificatie daarvan staat in een ander repo van Mark. Comments en
+**Het domein: offerte-conversie voor DocuSign** — geport uit het oude repo
+`markkuijpers31-lab/esign_motrac` (Java/Spring Boot + PDFBox + LibreOffice,
+PoC op een Proxmox-LXC) op 2026-09-21. Een `.docx` uit de configurator wordt
+voorbewerkt, door LibreOffice naar PDF gerenderd en per checkbox voorzien van
+een verborgen DocuSign-anker in de tekstlaag; Salesforce Apex maakt daar de
+DocuSign-velden van. Zie "Offerte-conversie" hieronder. Comments en
 domeintermen in de code zijn Nederlands; houd nieuwe code daarmee consistent.
 
 ## Repo layout
@@ -63,7 +66,10 @@ npm test               # node:test; DB-tests slaan zichzelf over zonder TEST_DAT
 ```
 
 Tests vergen Node 22 (het glob-patroon van `node --test`); de backend zelf
-draait op `node >=18` en de deploy-jobs staan op de versie van het serverpark.
+draait op `node >=20` (eis van `pdfjs-dist`) en de deploy-jobs staan op de
+versie van het serverpark (Node 24). **Lokaal en op de server moet LibreOffice
+(`soffice`) op het PATH staan** voor de conversie zelf — zonder start de app
+gewoon op, maar geeft elke conversie een 503 (zie "Offerte-conversie").
 
 ---
 
@@ -214,28 +220,91 @@ echte grens, een `isAdmin`-check in de UI alleen cosmetiek.
 |---|---|---|
 | `GET /api/_health` | geen | Opstartdiagnose: fase/fout, welke env-vars gezet zijn (nooit de waarden). Vóór de rate limiter en de auth-gate gemount, dus antwoordt ook in storingsmodus. |
 | `GET /api/_health/beheer` | geen | Doet de `/verify`-call naar Motrac-beheer met een opzettelijk ongeldig token, zodat "koppeling kapot" te onderscheiden is van "token verlopen". |
-| `GET /api/data` | bearer | Bootstrap: `config` (alleen `CONFIG_WHITELIST`, nu leeg). Hier haakt de datalaag straks aan. |
+| `GET /api/data` | bearer | Bootstrap: `config` (alleen `CONFIG_WHITELIST`, nu leeg). |
 | `POST /api/feedback` | bearer | Doorgifte van de FeedbackWidget naar Motrac-beheer; eigen 12mb-body-limiet vanwege screenshots. |
+| `GET /api/conversies/status` | bearer | Render-engine (LibreOffice gevonden + versie, of Gotenberg bereikbaar) en de aanwezige lettertypen; welke van DaxPro / DaxPro-Light / DaxPro-Medium ontbreken. Voedt de statuskaart. |
+| `POST /api/conversies` | bearer | De conversie. Body `{ bestandsnaam, docxBase64 }` (eigen 35mb-parser vóór de generieke), antwoord `{ bestandsnaam, aantalCheckboxen, pdfBase64, lettertypen: { gevraagd, inPdf, vervangen }, engine, duurMs, symbolenVervangen, ankersGeschat }`. Fouten: `VALIDATION` 400/413, `CONVERSIE_ENGINE_ONBESCHIKBAAR` 503, `CONVERSIE_MISLUKT` 422, `CONVERSIE_TIMEOUT` 504, `CONVERSIE_DRUK` 503. |
+| `GET /api/conversies` | `requireAdmin` | Het conversies-logboek (migratie 0003), server-side gepagineerd; metadata, nooit documentinhoud. |
 | `GET /api/audit-log` | `requireAdmin` | Server-side gepagineerd logboek (`logAction`/`logActionZachtjes`). |
 | `PUT /api/config/:key` | `requireAdmin` | Alleen `CONFIG_WHITELIST`-sleutels (fail-closed). |
+
+`GET /api/_health` bevat daarnaast een `conversie`-blok (`engine`,
+`libreofficeGevonden`, `lettertypeBestanden`, `vereisteLettertypenOntbreken`),
+alleen booleans/aantallen — zo is vóór het inloggen te zien of de server kan
+renderen.
 
 `CONFIG_WHITELIST` bepaalt zowel wat bewerkbaar is als wat `GET /api/data`
 teruggeeft — de config-tabel bevat ook `MOTRAC_VERIFY_KEY` (fallback als de
 env-var ontbreekt), en die hoort nooit bij een gebruiker te belanden.
 
-### Volgende stap: het domein
+### Offerte-conversie (het domein)
 
-Volg het patroon van `mit-salessupport` (zie diens CLAUDE.md, "Architecture"):
-een `DataProvider`-interface in `frontend/src/lib/dataProvider.ts`, een
-`ApiDataProvider` op `lib/api.ts`, een `MockDataProvider` voor UI-werk zonder
-backend (`VITE_DATA_BACKEND=mock`), een `DataContext` die de providers op
-React-acties bedraadt, en per operatie de route in `server.js` plus een
-migratie in `backend/migrations/` (viercijferig, aansluitend, idempotent —
-`test/migraties.test.js` bewaakt de reeks). Een nieuwe admin-route hoort in
-`BEHEERDERROUTES` in `test/auth.test.js`; een nieuw runtime-bestand in
+De keten, per upload, in `backend/lib/`:
+
+1. **`docxVoorbewerking.js`** (port van `DocxPreprocessor.java`) — in
+   `word/document.xml` + `header*.xml` + `footer*.xml` wordt elke
+   `<w:sym w:font="Wingdings 2" w:char="F0A3"/>` een `<w:t>☐</w:t>`; alle
+   andere zip-onderdelen gaan byte-voor-byte mee (`fflate`). Verzamelt ook de
+   gevraagde lettertypen (`w:rFonts` in runs, docDefaults, gebruikte stijlen
+   incl. `basedOn`-keten).
+2. **`docxNaarPdf.js`** (port van `DocxToPdfService.java`) — LibreOffice
+   headless met per conversie een **eigen tijdelijk gebruikersprofiel**
+   (`-env:UserInstallation`; anders weigert LO een tweede instantie en botsen
+   de cluster-workers) waarin `user/fonts/` gevuld wordt met de bestanden uit
+   `backend/fonts/` (+ `/uploads/fonts`, of `FONTS_DIR`). **Zo blijven DaxPro,
+   DaxPro-Light en DaxPro-Medium in de PDF zonder systeeminstallatie** —
+   gecontroleerd op 2026-09-21: LO leest die profielmap ook als fontconfig
+   het lettertype niet kent. Tweede engine: `DOCX_PDF_ENGINE=gotenberg` +
+   `GOTENBERG_URL` (externe LibreOffice-dienst) voor het geval LO niet op de
+   fleet-server zelf kan.
+3. **`pdfCheckboxAnkers.js`** (port van `PdfCheckboxService.java`) — posities
+   van ☐ (U+2610) en U+F0A3 via `pdfjs-dist` (tekst-items in
+   PDF-gebruikersruimte), daarna met `pdf-lib` per glyph `\cb_NNN\` in wit
+   1pt Helvetica als échte tekst, rechterrand vlak vóór het vakje, op de
+   basislijn. Globale teller in leesvolgorde, het zichtbare ☐ blijft staan,
+   géén AcroForm — precies de afspraken met de Apex-kant uit de PoC
+   (placement `right`, offset 0,0). De lettertype-vergelijking gebeurt op de
+   PDF vóór het stempelen.
+4. **`conversie.js`** (port van `UploadController.java`) — validatie
+   (.docx, ≤ 25 MB, geldige zip), werkmap in `os.tmpdir()` die in `finally`
+   verdwijnt, begrenzer van `CONVERSIE_MAX_GELIJKTIJDIG` (2) renders per
+   worker, `LIBREOFFICE_TIMEOUT_SECONDEN` (120). `lettertypen.js` leest de
+   familienamen uit de fontbestanden (name-tabel) voor de statuskaart.
+
+**Bewuste keuzes bij de port (2026-09-21):**
+
+- **Upload en PDF reizen als base64 in JSON.** `lib/api.ts` is beschermde
+  fleet-basis en kent alleen JSON; multipart of een binaire download zou een
+  tweede transportpad of een wijziging in dat bestand vergen. 25 MB .docx →
+  ~34 MB body, eigen parser op `/api/conversies` (35mb) vóór de generieke
+  256kb. Wil Mark ooit multipart, dan hoort dat fleet-breed in `api.ts`.
+- **`backend/fonts/DejaVuSans.ttf` wordt meegeleverd** (Bitstream Vera-licentie):
+  het levert het ☐-glyph. DaxPro en OpenSymbol hebben U+2610 niet; zonder een
+  lettertype dat het wél heeft rendert LO een leeg blokje, staat er geen ☐ in
+  de tekstlaag en vindt de PDF-stap nul checkboxen — stil. De DaxPro-bestanden
+  zelf staan (nog) niet in het repo: licentie en aanlevering zijn aan Mark
+  (zie `backend/fonts/README.md`).
+- **Een ☐ in een kop- of voettekst krijgt per pagina een eigen anker** (de
+  PDF-stap telt glyphs, niet XML-runs) — zoals in de Java-versie.
+- **Elke uitkomst komt in het `conversies`-logboek** (ook mislukt, met
+  foutcode), zonder documentinhoud; de PoC had geen logboek en noemde dat als
+  beperking. Beheerder-only, net als het audit-logboek.
+- **De frontend volgt het datalaag-patroon van `mit-salessupport`**:
+  `lib/dataProvider.ts` (interface), `lib/apiDataProvider.ts`,
+  `lib/mockDataProvider.ts` (`VITE_DATA_BACKEND=mock`), `context/DataContext.tsx`
+  (binnen de ingelogde shell in `App.tsx`, niet in het beschermde `main.tsx`).
+  Pagina's: `modules/conversie/ConversiePage.tsx` (statuskaart + upload +
+  resultaat) en `modules/geschiedenis/GeschiedenisPage.tsx` (admin;
+  `DataTable` + `KaartLijst` uit dezelfde celfuncties, `Pagination`).
+  Domein-CSS met voorvoegsel `.offerte-` in `styles/app.css`.
+
+**Uitbreiden** volgt hetzelfde patroon: route in `server.js` + migratie in
+`backend/migrations/` (viercijferig, aansluitend, idempotent —
+`test/migraties.test.js` bewaakt de reeks), een nieuwe admin-route in
+`BEHEERDERROUTES` in `test/auth.test.js`, een nieuw runtime-bestand of -map in
 `COPY_ENTRIES` van `scripts/build.mjs` (anders faalt `test/syntax.test.js`).
-Per rij een `Tag` mét `tone`, per lijst een `DataTable` én een `KaartLijst`
-uit dezelfde celfuncties, paginering via `Pagination` uit het pakket.
+Breid de checkbox-detectie **niet** uit zonder de tests opnieuw tegen echte
+Motrac-offertes te valideren: √ in de service-inclusies is geen checkbox.
 
 ## i18n
 
@@ -269,6 +338,18 @@ cd frontend && npm run check:i18n
   connectiestring lekt niet.
 - `backend/test/migraties.test.js` — idempotentie (drie keer draaien) en een
   gesloten nummerreeks.
+- `backend/test/docxVoorbewerking.test.js`, `pdfCheckboxAnkers.test.js`,
+  `lettertypen.test.js` — ports van de Java-tests uit `esign_motrac` plus de
+  lettertype-laag; pure logica, geen DB of LibreOffice (de test-PDF wordt met
+  pdf-lib + DejaVu Sans gebouwd).
+- `backend/test/conversie.test.js` — de conversie over de echte server:
+  validatie, 401/403, statusroute, logboek, 400/413. Staat `soffice` op de
+  machine, dan draait de hele render-keten (3 checkboxen incl. header, ankers
+  in de tekstlaag, bestaand anker `\s2\` blijft); zo niet, dan controleert
+  hij de 503 `CONVERSIE_ENGINE_ONBESCHIKBAAR` — bewust een tak en geen skip,
+  want CI eist `# skipped 0`. **De GitHub-runner heeft geen LibreOffice**, dus
+  CI test de render-keten nu niet; een `apt-get install libreoffice-writer`
+  in `tests.yml` (beschermd bestand) zou dat oplossen — voorleggen aan Mark.
 - CI (`tests.yml`) draait de backend-suite mét Postgres-service en faalt als
   er tests overgeslagen zijn; de typecheck-job bouwt de siblings en draait
   `tsc` + `motrac-ui-check --streng`.

@@ -91,7 +91,8 @@
     "titel": "Sales offerte converter"
   },
   "nav": {
-    "home": "Start"
+    "converteren": "Convert",
+    "geschiedenis": "History"
   },
   "algemeen": {
     "laden": "Loading…",
@@ -104,10 +105,71 @@
     "gebruiker": "User",
     "admin": "Admin"
   },
-  "home": {
-    "welkom": "Welcome to the Sales quote converter. The foundation of the app is in place; the first feature follows in the next step.",
-    "ingelogdAls": "Signed in as {{naam}} ({{rol}})",
-    "volgendeStapTitel": "What comes next",
-    "volgendeStapTekst": "Converting sales quotes will live here. Until then this is a working, bootable skeleton on the shared Motrac UI layer."
+  "conversie": {
+    "titel": "Convert quote for DocuSign",
+    "status": {
+      "titel": "Server status",
+      "gereed": "The server can convert documents (engine: {{engine}}).",
+      "gereedMetVersie": "The server can convert documents — LibreOffice {{versie}}.",
+      "engineOntbreektTitel": "Converting is not possible right now",
+      "engineOntbreekt": "The render engine ({{engine}}) is not available on the server. Without LibreOffice no PDF can be produced — report this to the administrator (see DEPLOY.md).",
+      "lettertypen": "Fonts on the server",
+      "ontbreekt": "missing",
+      "fontsOntbrekenTitel": "Not all quote fonts are on the server",
+      "fontsOntbreken": "Missing: {{fonts}}. LibreOffice will substitute another font and the PDF layout may shift. Put the font files in backend/fonts/ (see the README there)."
+    },
+    "upload": {
+      "titel": "Word document",
+      "veld": "Choose a .docx file or drop it here",
+      "hint": "Only .docx from the configurator, up to 25 MB. The document is not stored on the server.",
+      "gekozen": "Selected: {{naam}} ({{grootte}})"
+    },
+    "knop": "Convert",
+    "bezig": "Converting…",
+    "nieuw": "New document",
+    "fout": {
+      "titel": "Conversion failed",
+      "geenDocx": "Only .docx files are supported.",
+      "teGroot": "The file is larger than {{max}}.",
+      "onbekend": "Something went wrong during conversion. Please try again.",
+      "engineHint": "Contact the administrator."
+    },
+    "resultaat": {
+      "titel": "PDF ready",
+      "checkboxen": "Checkboxes found",
+      "duur": "Duration",
+      "symbolen": "Symbols converted",
+      "symbolenSub": "Wingdings boxes → ☐",
+      "geenCheckboxen": "No checkboxes (☐) were found. The PDF was created, but DocuSign will get no checkbox fields. Check that the document uses the ☐ character or the Wingdings 2 symbol.",
+      "geschat": "For {{aantal}} anchor(s) the box sat in the middle of a text line; its position is estimated. Check those fields in DocuSign.",
+      "lettertypen": "Fonts in the document",
+      "geenLettertypen": "no explicit fonts",
+      "vervangen": "substituted",
+      "vervangenTitel": "Font substituted",
+      "vervangenTekst": "LibreOffice did not have {{fonts}} and used another font. The PDF may differ from the Word document. Put the font files on the server (backend/fonts/).",
+      "download": "Download {{naam}}",
+      "apexHint": "The PDF carries a hidden anchor per checkbox (\\cb_001\\, \\cb_002\\, …) in the text layer. Salesforce Apex turns those into DocuSign fields; the existing anchors (\\i1\\, \\s2\\, \\n2\\, \\ref2\\) are left untouched."
+    }
+  },
+  "geschiedenis": {
+    "titel": "Conversion history",
+    "uitleg": "Every conversion is recorded here: who, when, which file, how many checkboxes and whether a font was substituted. The documents themselves are not stored.",
+    "aantal": "{{aantal}} conversion(s) in total",
+    "leeg": "No conversions yet.",
+    "geenVervangen": "none",
+    "status": {
+      "geslaagd": "Succeeded",
+      "mislukt": "Failed"
+    },
+    "kolom": {
+      "datum": "Date",
+      "bestand": "File",
+      "gebruiker": "User",
+      "status": "Status",
+      "checkboxen": "Checkboxes",
+      "duur": "Duration",
+      "lettertypen": "Substituted fonts",
+      "fout": "Error"
+    }
   }
 }

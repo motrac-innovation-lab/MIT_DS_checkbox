@@ -39,6 +39,8 @@ const distDir = path.join(projectRoot, 'dist')
 //   server.js       — de hele API, het startpunt (`node server.js`)
 //   db.js           — D1-compat-shim over Postgres, geïmporteerd door server.js
 //   lib/            — startup-check.js (env-validatie) + migrate.js (runner)
+//   fonts/          — *.ttf/*.otf voor de PDF-render, per conversie in het
+//                     LibreOffice-profiel gekopieerd (lib/lettertypen.js)
 //   migrations/     — *.sql, tijdens het draaien ingelezen door lib/migrate.js;
 //                     zonder deze map migreert de server zichzelf niet en blijft
 //                     de database leeg
@@ -56,6 +58,9 @@ const COPY_ENTRIES = [
   { from: 'db.js', kind: 'file' },
   { from: 'lib', kind: 'dir' },
   { from: 'migrations', kind: 'dir' },
+  // Lettertypen voor de LibreOffice-render (lib/lettertypen.js leest deze map
+  // tijdens het draaien; zonder deze regel rendert de PDF zonder ☐ en DaxPro).
+  { from: 'fonts', kind: 'dir' },
 ]
 
 async function main() {
