@@ -10,17 +10,89 @@
 // pdfCheckboxAnkers.js) altijd één en hetzelfde glyph terugvindt. De
 // PDF-stap kent U+F0A3 óók als vangnet, precies zoals de Java-versie.
 //
-// Er wordt uitsluitend in de body en in de kop-/voetteksten gezocht
-// (word/document.xml, word/header*.xml, word/footer*.xml). Alle andere
-// zip-onderdelen (styles, relaties, afbeeldingen, fontTable, …) gaan
-// byte-voor-byte mee, zodat het document geldig blijft. Daarnaast worden de
-// in het document gebruikte lettertypen verzameld, zodat na het renderen te
-// controleren is of LibreOffice ze ook echt gebruikt heeft (de eis van Mark:
-// DaxPro / DaxPro-Light / DaxPro-Medium moeten in de PDF behouden blijven).
+// Naar checkbox-symbolen wordt uitsluitend in de body en in de kop-/
+// voetteksten gezocht (word/document.xml, word/header*.xml,
+// word/footer*.xml). Daarnaast worden lettertype-aliassen toegepast op elk
+// onderdeel dat lettertypen kan noemen (zie LETTERTYPE_PART): een naam die
+// in het sjabloon staat maar niet als bestand bestaat, wordt vervangen door
+// de naam die er wél is. Alle overige zip-onderdelen gaan byte-voor-byte
+// mee, en een onderdeel dat niet daadwerkelijk verandert óók — zodat het
+// document geldig blijft en er geen onnodige verschillen ontstaan.
+//
+// Ten slotte worden de gebruikte lettertypen verzameld, zodat na het
+// renderen te controleren is of LibreOffice ze echt gebruikt heeft (de eis
+// van Mark: de DaxPro-snitten moeten in de PDF behouden blijven).
 import { unzipSync, zipSync, strFromU8, strToU8 } from 'fflate'
 
-/** Zip-onderdelen die getransformeerd worden; de rest passeert onaangeroerd. */
+/** Zip-onderdelen waarin naar checkbox-symbolen gezocht wordt. */
 const WORD_PART = /^word\/(?:document|header\d*|footer\d*)\.xml$/
+
+/**
+ * Zip-onderdelen waarin lettertype-aliassen worden toegepast: overal waar een
+ * `w:rFonts` kan staan. `numbering.xml` hoort er nadrukkelijk bij — daar staat
+ * het lettertype van de opsommingstekens, en juist dáár gebruikt het
+ * Motrac-sjabloon `LindeDaxOffice` (zie LETTERTYPE_ALIASSEN).
+ */
+const LETTERTYPE_PART = /^word\/(?:document|header\d*|footer\d*|footnotes|endnotes|styles|numbering)\.xml$/
+
+/**
+ * Lettertypenamen uit het sjabloon die naar een andere naam moeten wijzen.
+ *
+ * `LindeDaxOffice` is de naam uit de Linde-huisstijlkit die in
+ * `word/numbering.xml` op de opsommingstekens staat. Dat lettertypebestand
+ * bestaat niet op de server; het document draagt er zelf zelfs
+ * `<w:altName w:val="Calibri"/>` bij, waardoor de bolletjes in Calibri
+ * zouden vallen. Mark (2026-09-21): dit moet DaxPro worden.
+ *
+ * Te overschrijven met de env-var LETTERTYPE_ALIASSEN, als
+ * `Oud=Nieuw,Ander=Nieuw`. Een lege waarde zet alle aliassen uit.
+ */
+export const STANDAARD_ALIASSEN = { LindeDaxOffice: 'DaxPro' }
+
+/** Attributen van `w:rFonts` die een lettertypenaam dragen. */
+const RFONTS_ATTRIBUUT = /\bw:(ascii|hAnsi|cs|eastAsia)="([^"]*)"/g
+
+/** Vergelijkbare vorm van een lettertypenaam: "Dax pro" == "DaxPro" == "daxpro". */
+const sleutel = (naam) => String(naam ?? '').toLowerCase().replace(/[^a-z0-9]/g, '')
+
+/** De actieve aliassen, met de env-var als overschrijving. */
+export function lettertypeAliassen() {
+  const ruw = process.env.LETTERTYPE_ALIASSEN
+  if (ruw === undefined) return { ...STANDAARD_ALIASSEN }
+  const uit = {}
+  for (const paar of ruw.split(',')) {
+    const [oud, nieuw] = paar.split('=').map((d) => d?.trim())
+    if (oud && nieuw) uit[oud] = nieuw
+  }
+  return uit
+}
+
+/**
+ * Vervangt in één XML-onderdeel elke `w:rFonts`-verwijzing naar een
+ * alias-naam door de doelnaam. Hoofdletters, spaties en streepjes tellen niet
+ * mee bij het vergelijken, zodat "Dax pro" en "DaxPro" allebei matchen.
+ *
+ * Bewust alleen `w:rFonts` en niet `word/fontTable.xml`: die tabel is een
+ * beschrijving van de gebruikte lettertypen, geen verwijzing. Hem hernoemen
+ * zou een tweede vermelding voor dezelfde naam kunnen opleveren, terwijl hij
+ * er voor het renderen niet toe doet zodra geen enkele run er nog naar wijst.
+ */
+export function pasLettertypeAliassenToe(xml, aliassen) {
+  const tabel = new Map(Object.entries(aliassen ?? {}).map(([oud, nieuw]) => [sleutel(oud), nieuw]))
+  if (!tabel.size) return { xml, vervangingen: 0 }
+  let vervangingen = 0
+  const uit = xml.replace(RFONTS_ATTRIBUUT, (heel, attribuut, waarde) => {
+    const doel = tabel.get(sleutel(waarde))
+    if (!doel || doel === waarde) return heel
+    vervangingen++
+    return `w:${attribuut}="${doel}"`
+  })
+  return { xml: uit, vervangingen }
+}
+
+export function isLettertypePart(naam) {
+  return typeof naam === 'string' && LETTERTYPE_PART.test(naam)
+}
 
 /** Waar een checkbox-symboolrun in verandert. xml:space=preserve houdt het glyph intact. */
 export const VERVANGING = '<w:t xml:space="preserve">☐</w:t>'
@@ -107,9 +179,9 @@ function lettertypenUitStijlen(stylesXml, gebruikteStijlen) {
 
 /**
  * Voert de voorbewerking uit op de ruwe DOCX-bytes.
- * @returns {{ docx: Uint8Array, vervangingen: number, lettertypen: string[] }}
+ * @returns {{ docx: Uint8Array, vervangingen: number, aliassenToegepast: number, lettertypen: string[] }}
  *   `lettertypen`: de door het document gevraagde lettertypen, gesorteerd en
- *   zonder symboollettertypen.
+ *   zonder symboollettertypen, ná het toepassen van de aliassen.
  */
 export function voorbewerkDocx(docxBytes) {
   let onderdelen
@@ -124,32 +196,53 @@ export function voorbewerkDocx(docxBytes) {
 
   const uitvoer = {}
   let vervangingen = 0
+  let aliassenToegepast = 0
   const gevraagd = new Set()
   const stijlen = new Set()
+  const aliassen = lettertypeAliassen()
 
   for (const [naam, bytes] of Object.entries(onderdelen)) {
     // Mapvermeldingen ("word/") zijn geen bestanden; een zip zonder ze is even geldig.
     if (naam.endsWith('/')) continue
-    if (isTransformeerbaarWordPart(naam)) {
-      const xml = strFromU8(bytes)
+
+    const zoekSymbolen = isTransformeerbaarWordPart(naam)
+    const zoekLettertypen = isLettertypePart(naam)
+    if (!zoekSymbolen && !zoekLettertypen) {
+      // Styles, relaties, afbeeldingen, fontTable, custom XML: onaangeroerd.
+      uitvoer[naam] = bytes
+      continue
+    }
+
+    const origineel = strFromU8(bytes)
+    let xml = origineel
+    if (zoekSymbolen) {
       const resultaat = transformeerDocumentXml(xml)
+      xml = resultaat.xml
       vervangingen += resultaat.vervangingen
-      uitvoer[naam] = strToU8(resultaat.xml)
-      const gebruikt = lettertypenInOnderdeel(resultaat.xml)
+    }
+    if (zoekLettertypen) {
+      const resultaat = pasLettertypeAliassenToe(xml, aliassen)
+      xml = resultaat.xml
+      aliassenToegepast += resultaat.vervangingen
+    }
+    if (zoekSymbolen) {
+      // Ná de aliassen, zodat een hernoemd lettertype ook zo verzameld wordt.
+      const gebruikt = lettertypenInOnderdeel(xml)
       for (const f of gebruikt.fonts) gevraagd.add(f)
       for (const s of gebruikt.stijlen) stijlen.add(s)
-    } else {
-      uitvoer[naam] = bytes
     }
+    // Niet veranderd? Dan de oorspronkelijke bytes, zodat een onderdeel dat
+    // we alleen hebben bekeken byte-identiek terugkomt.
+    uitvoer[naam] = xml === origineel ? bytes : strToU8(xml)
   }
 
-  if (onderdelen['word/styles.xml']) {
-    for (const f of lettertypenUitStijlen(strFromU8(onderdelen['word/styles.xml']), stijlen)) gevraagd.add(f)
+  if (uitvoer['word/styles.xml']) {
+    for (const f of lettertypenUitStijlen(strFromU8(uitvoer['word/styles.xml']), stijlen)) gevraagd.add(f)
   }
 
   const lettertypen = [...gevraagd].filter((f) => f && !SYMBOOL_LETTERTYPEN.test(f)).sort((a, b) => a.localeCompare(b, 'nl'))
 
-  return { docx: zipSync(uitvoer), vervangingen, lettertypen }
+  return { docx: zipSync(uitvoer), vervangingen, aliassenToegepast, lettertypen }
 }
 
 export class DocxOngeldig extends Error {

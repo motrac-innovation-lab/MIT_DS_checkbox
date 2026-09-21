@@ -7,8 +7,12 @@ import test from 'node:test'
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate'
 import {
   DocxOngeldig,
+  STANDAARD_ALIASSEN,
   VERVANGING,
+  isLettertypePart,
   isTransformeerbaarWordPart,
+  lettertypeAliassen,
+  pasLettertypeAliassenToe,
   transformeerDocumentXml,
   voorbewerkDocx,
 } from '../lib/docxVoorbewerking.js'
@@ -114,4 +118,93 @@ test('verzamelt de gevraagde lettertypen uit runs, docDefaults en de basedOn-ket
 test('weigert wat geen docx is', () => {
   assert.throws(() => voorbewerkDocx(strToU8('dit is geen zip')), DocxOngeldig)
   assert.throws(() => voorbewerkDocx(maakDocx({ 'iets.txt': 'zip zonder word/document.xml' })), DocxOngeldig)
+})
+
+// ---- Lettertype-aliassen -------------------------------------------------
+//
+// Het Motrac-sjabloon zet `LindeDaxOffice` op de opsommingstekens in
+// word/numbering.xml. Dat lettertype bestaat nergens als bestand — het
+// document draagt er zelfs `<w:altName w:val="Calibri"/>` bij — dus de
+// bolletjes vielen in Calibri. Mark (2026-09-21): dit moet DaxPro worden.
+
+test('vervangt een alias in elk w:rFonts-attribuut, ongeacht schrijfwijze', () => {
+  const xml = '<w:p><w:rPr><w:rFonts w:ascii="LindeDaxOffice" w:hAnsi="lindedaxoffice" w:cs="Linde Dax Office" w:eastAsia="Times New Roman"/></w:rPr></w:p>'
+  const r = pasLettertypeAliassenToe(xml, { LindeDaxOffice: 'DaxPro' })
+  assert.equal(r.vervangingen, 3, 'ascii, hAnsi en cs — eastAsia staat op een ander lettertype')
+  assert.ok(!r.xml.includes('LindeDaxOffice'))
+  assert.ok(!/lindedaxoffice/i.test(r.xml))
+  assert.ok(r.xml.includes('w:eastAsia="Times New Roman"'), 'andere lettertypen blijven staan')
+  assert.equal((r.xml.match(/"DaxPro"/g) ?? []).length, 3)
+})
+
+test('zonder aliassen verandert er niets', () => {
+  const xml = '<w:rFonts w:ascii="LindeDaxOffice"/>'
+  for (const leeg of [{}, undefined, null]) {
+    const r = pasLettertypeAliassenToe(xml, leeg)
+    assert.equal(r.vervangingen, 0)
+    assert.equal(r.xml, xml)
+  }
+})
+
+test('de aliaslijst is met een env-var te overschrijven', () => {
+  const oud = process.env.LETTERTYPE_ALIASSEN
+  try {
+    delete process.env.LETTERTYPE_ALIASSEN
+    assert.deepEqual(lettertypeAliassen(), STANDAARD_ALIASSEN)
+
+    process.env.LETTERTYPE_ALIASSEN = 'Oud=Nieuw, Tweede = Ander '
+    assert.deepEqual(lettertypeAliassen(), { Oud: 'Nieuw', Tweede: 'Ander' })
+
+    // Leeg zet alle aliassen uit; dat moet kunnen zonder codewijziging.
+    process.env.LETTERTYPE_ALIASSEN = ''
+    assert.deepEqual(lettertypeAliassen(), {})
+  } finally {
+    if (oud === undefined) delete process.env.LETTERTYPE_ALIASSEN
+    else process.env.LETTERTYPE_ALIASSEN = oud
+  }
+})
+
+test('herkent de onderdelen waarin lettertypen kunnen staan', () => {
+  for (const naam of ['word/document.xml', 'word/header1.xml', 'word/footer2.xml', 'word/styles.xml', 'word/numbering.xml', 'word/footnotes.xml', 'word/endnotes.xml']) {
+    assert.ok(isLettertypePart(naam), naam)
+  }
+  for (const naam of ['word/fontTable.xml', 'word/settings.xml', 'word/theme/theme1.xml', '[Content_Types].xml', null]) {
+    assert.ok(!isLettertypePart(naam), String(naam))
+  }
+})
+
+test('past de alias toe op numbering.xml en styles.xml, en laat fontTable met rust', () => {
+  const numbering = `<w:numbering ${W}><w:lvl><w:rPr><w:rFonts w:ascii="LindeDaxOffice" w:hAnsi="LindeDaxOffice"/></w:rPr></w:lvl></w:numbering>`
+  const styles = `<w:styles ${W}><w:style w:styleId="Lijst"><w:rPr><w:rFonts w:ascii="LindeDaxOffice"/></w:rPr></w:style></w:styles>`
+  // Zoals in een echte offerte: de fontTable beschrijft het lettertype en
+  // wijst zelf naar Calibri. Die tabel is geen verwijzing, dus hij blijft.
+  const fontTable = `<w:fonts ${W}><w:font w:name="LindeDaxOffice"><w:altName w:val="Calibri"/></w:font></w:fonts>`
+  // De alinea gebruikt de stijl "Lijst", zodat de verzamelde lettertypen via
+  // de stijlketen lopen. Zo controleert deze test meteen de volgorde: de
+  // alias wordt toegepast VOOR de lettertypen verzameld worden.
+  const body = `<w:document ${W}><w:body><w:p><w:pPr><w:pStyle w:val="Lijst"/></w:pPr><w:r><w:t>tekst</w:t></w:r></w:p></w:body></w:document>`
+
+  const uit = voorbewerkDocx(maakDocx({
+    'word/document.xml': body,
+    'word/numbering.xml': numbering,
+    'word/styles.xml': styles,
+    'word/fontTable.xml': fontTable,
+  }))
+
+  assert.equal(uit.aliassenToegepast, 3, '2 in numbering, 1 in styles')
+  assert.ok(!lees(uit.docx, 'word/numbering.xml').includes('LindeDaxOffice'))
+  assert.ok(!lees(uit.docx, 'word/styles.xml').includes('LindeDaxOffice'))
+  assert.equal(lees(uit.docx, 'word/fontTable.xml'), fontTable, 'fontTable blijft byte-identiek')
+  // De hernoemde naam telt mee als gevraagd lettertype, de oude niet meer.
+  assert.deepEqual(uit.lettertypen, ['DaxPro'])
+})
+
+test('een onderdeel zonder treffer komt byte-identiek terug', () => {
+  // Zonder deze garantie zou elk bekeken onderdeel opnieuw geserialiseerd
+  // worden, en dan is niet meer te zien wat de voorbewerking echt veranderde.
+  const numbering = `<w:numbering ${W}><w:lvl><w:rPr><w:rFonts w:ascii="DaxPro"/></w:rPr></w:lvl></w:numbering>`
+  const bron = { 'word/document.xml': `<w:document ${W}><w:body/></w:document>`, 'word/numbering.xml': numbering }
+  const uit = voorbewerkDocx(maakDocx(bron))
+  assert.equal(uit.aliassenToegepast, 0)
+  assert.equal(lees(uit.docx, 'word/numbering.xml'), numbering)
 })
