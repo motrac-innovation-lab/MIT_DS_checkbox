@@ -6,6 +6,14 @@ systeembreed: elke conversie krijgt een eigen, tijdelijk LibreOffice-profiel en
 **elke `*.ttf`/`*.otf` uit deze map wordt daar in `user/fonts/` gekopieerd**
 (zie `lib/lettertypen.js` en `lib/docxNaarPdf.js`). Geen root, geen fontconfig.
 
+> **Alleen bij de lokale engine (`DOCX_PDF_ENGINE=soffice`, de standaard).**
+> Bij `DOCX_PDF_ENGINE=gotenberg` gaat enkel de `.docx` naar de externe
+> LibreOffice-dienst en komen de lettertypen uit de image van die dienst
+> (`COPY fonts/ /usr/local/share/fonts/`, zie DEPLOY.md route B). Deze map,
+> `/uploads/fonts/` en `FONTS_DIR` hebben dan geen invloed op de PDF; de
+> statuskaart toont de DaxPro-families dan als "onbekend" en pas het resultaat
+> van een conversie meldt welke lettertypen echt vervangen zijn.
+
 ## Wat hier hoort te staan
 
 | Bestand | Waarom |

@@ -271,11 +271,22 @@ if (DOCX_PDF_ENGINE === 'soffice') {
 } else {
   libreOfficeDetectie = { gevonden: false, extern: true }
 }
+// De fontmappen van déze server (backend/fonts/, /uploads/fonts, FONTS_DIR)
+// worden alleen bij de lokale soffice-engine in het LibreOffice-profiel
+// gekopieerd. Bij Gotenberg gaat enkel de .docx naar de dienst en komen de
+// lettertypen uit diens image; wat hier in de mappen staat zegt dan niets
+// over de PDF. De statuskaart en /api/_health melden dat via `viaFontmappen`,
+// zodat "DaxPro ontbreekt" niet naar de verkeerde map wijst (2026-09-22).
+const FONTMAPPEN_GEBRUIKT = DOCX_PDF_ENGINE === 'soffice'
 beschikbareLettertypen().then((bestanden) => {
   const ontbreekt = ontbrekendeVereisteLettertypen(bestanden)
   lettertypeDetectie = { aantal: bestanden.length, ontbreekt }
   console.log(`Lettertypen voor de PDF-render: ${bestanden.length} bestand(en) in ${fontMappen().join(', ')}`)
-  if (ontbreekt.length) console.warn(`Vereiste lettertypen ontbreken (worden door LibreOffice vervangen): ${ontbreekt.join(', ')} — zie backend/fonts/README.md`)
+  if (!FONTMAPPEN_GEBRUIKT) {
+    console.log(`Engine ${DOCX_PDF_ENGINE}: de lettertypen komen uit de externe LibreOffice-dienst, niet uit deze mappen (zie DEPLOY.md, route B).`)
+  } else if (ontbreekt.length) {
+    console.warn(`Vereiste lettertypen ontbreken (worden door LibreOffice vervangen): ${ontbreekt.join(', ')} — zie backend/fonts/README.md`)
+  }
 }, (e) => { lettertypeDetectie = { aantal: 0, ontbreekt: VEREISTE_LETTERTYPEN }; console.error('Lettertypen inlezen mislukt:', e) })
 
 // Vóór de rate limiter, de auth-middleware en de 404-afhandeling gemount,
@@ -307,6 +318,9 @@ app.get('/api/_health', (req, res) => {
       libreofficeGevonden: libreOfficeDetectie ? libreOfficeDetectie.gevonden : null,
       lettertypeBestanden: lettertypeDetectie ? lettertypeDetectie.aantal : null,
       vereisteLettertypenOntbreken: lettertypeDetectie ? lettertypeDetectie.ontbreekt : null,
+      // false bij Gotenberg: de twee regels hierboven gaan dan over deze
+      // server, niet over de dienst die rendert.
+      viaFontmappen: FONTMAPPEN_GEBRUIKT,
     },
   })
 })
@@ -474,6 +488,9 @@ app.get('/api/conversies/status', ah(async (req, res) => {
       vereist: VEREISTE_LETTERTYPEN,
       ontbreekt: ontbrekendeVereisteLettertypen(bestanden),
       bestanden: bestanden.map((b) => ({ bestand: b.bestand, families: b.families })),
+      // Alleen bij soffice gaan `bestanden` mee in de render; bij Gotenberg
+      // is `ontbreekt` een uitspraak over deze server, niet over de PDF.
+      viaFontmappen: FONTMAPPEN_GEBRUIKT,
     },
     maxDocxBytes: MAX_DOCX_BYTES,
   })

@@ -31,7 +31,12 @@ plekken, in volgorde van voorkeur: `backend/fonts/` in het repo (gaat mee in de
 deploy-boom), `/uploads/fonts/` (persistente opslag aanzetten op het dashboard;
 houdt de commerciële fontbestanden buiten git), of `FONTS_DIR=…` in het
 Environment-paneel. `GET /api/_health` → `conversie.vereisteLettertypenOntbreken`
-moet `[]` zijn. Zie `backend/fonts/README.md`.
+moet `[]` zijn. Zie `backend/fonts/README.md`. **Dit geldt alleen voor route A**:
+bij route B (Gotenberg) gaat enkel de `.docx` naar de dienst en tellen de
+fontmappen van de backend niet mee — de DaxPro-bestanden horen dan in de
+Gotenberg-image. `/api/_health` meldt dat met `conversie.viaFontmappen: false`,
+en of de fonts daar echt staan blijkt pas uit `lettertypen.vervangen` in het
+antwoord van een conversie (moet `[]` zijn voor een DaxPro-offerte).
 
 **Geheugen.** Eén LibreOffice-render piekt op 400–600 MB; standaard 2
 gelijktijdige renders per worker (`CONVERSIE_MAX_GELIJKTIJDIG`), en cluster

@@ -40,6 +40,7 @@ export class MockDataProvider implements DataProvider {
           { bestand: 'DaxPro.otf', families: ['DaxPro'] },
           { bestand: 'DaxPro-Light.otf', families: ['DaxPro Light'] },
         ],
+        viaFontmappen: true,
       },
       maxDocxBytes: 25 * 1024 * 1024,
     }
