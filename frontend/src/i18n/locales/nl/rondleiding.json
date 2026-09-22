@@ -1,0 +1,65 @@
+{
+  "pagina": {
+    "titel": "Rondleiding",
+    "uitlegGebruiker": "De rondleiding wijst je in een paar stappen de weg: waar je een offerte uit de configurator omzet, wat er met je document gebeurt en wat je terugkrijgt.",
+    "uitlegAdmin": "Jij bent beheerder, dus jouw rondleiding loopt na het converteren ook langs de serverstatus en het conversielogboek. Een collega zonder beheerrechten krijgt alleen het eerste deel te zien."
+  },
+  "voortgang": "Stap {{nummer}} van {{totaal}}",
+  "volgende": "Volgende",
+  "vorige": "Vorige",
+  "overslaan": "Overslaan",
+  "klaar": "Klaar",
+  "kaart": {
+    "titel": "Nieuw hier? Doe de rondleiding",
+    "intro": "De rondleiding licht stap voor stap uit wat je op dit scherm ziet en waar je moet zijn. Je hoeft niets in te vullen en er verandert niets: er wordt alleen aangewezen en uitgelegd — er wordt onderweg geen document omgezet. Met Escape stop je, met de pijltjestoetsen blader je.",
+    "startKnop": "Rondleiding starten",
+    "opnieuwKnop": "Rondleiding opnieuw doen",
+    "hervatKnop": "Verdergaan waar je gebleven was",
+    "groepenIntro": "Of begin meteen bij het onderdeel waar je iets mee moet:",
+    "automatisch": "Rondleiding automatisch tonen bij een eerste bezoek",
+    "automatischUitleg": "Staat alleen op dit apparaat en geldt alleen voor jou; een collega die hier inlogt krijgt zijn eigen rondleiding."
+  },
+  "groep": {
+    "start": "Het scherm",
+    "converteren": "Een offerte omzetten",
+    "logboek": "Het logboek"
+  },
+  "stap": {
+    "welkom": {
+      "titel": "Welkom bij de offerte converter",
+      "tekst": "Met deze app maak je van een offerte uit de configurator een PDF die klaar is voor DocuSign. Elk aankruisvakje in het document krijgt daarbij een onzichtbare markering mee, waar Salesforce vervolgens een aanvinkbaar DocuSign-veld van maakt. In een paar stappen laat ik zien hoe dat gaat."
+    },
+    "navigatie": {
+      "titel": "De weg door de app",
+      "tekst": "Links staat het menu. Bovenin je werkschermen, onderin deze rondleiding en je taal-, thema- en uitlogknoppen. Op een telefoon staat dit menu onderaan het scherm, met de minder gebruikte items achter de drie streepjes."
+    },
+    "serverstatus": {
+      "titel": "Kan de server op dit moment omzetten?",
+      "tekst": "Deze kaart zie jij als beheerder, je collega's niet. Hij zegt vóór het uploaden of de render-engine draait en welke lettertypen de server heeft staan. Staat DaxPro hier op ontbreekt, dan komt er wel een PDF uit, maar met een vervangend lettertype — en dat ziet de klant. Een rode melding hier betekent dat converteren nu niet lukt; dat is een serverprobleem, niet iets aan jouw document."
+    },
+    "upload": {
+      "titel": "Je document kiezen",
+      "tekst": "Sleep hier het .docx-bestand uit de configurator naartoe, of klik om het te zoeken. Alleen .docx, en niet groter dan wat er onder het veld staat. Het document blijft niet op de server staan: het wordt omgezet en daarna meteen opgeruimd."
+    },
+    "starten": {
+      "titel": "Omzetten",
+      "tekst": "Met deze knop gaat je document op weg. De server zet elk aankruisvakje eerst om in een echt teken, maakt er dan een PDF van en plaatst per vakje een onzichtbare markering in de tekstlaag. Dat duurt een paar seconden — een offerte van tientallen pagina's mag je even de tijd geven."
+    },
+    "resultaat": {
+      "titel": "Wat je terugkrijgt",
+      "tekst": "Zodra het klaar is, begint de download vanzelf en verschijnt er een resultaatblok onder het formulier. Daarin staat hoeveel aankruisvakjes er gevonden zijn — tel dat na, want nul vakjes betekent dat er in Salesforce ook niets aan te vinken valt — hoe lang het duurde, en of er een lettertype vervangen is. Met de knop eronder download je de PDF nog een keer."
+    },
+    "geschiedenis": {
+      "titel": "Het conversielogboek",
+      "tekst": "Hier staat elke conversie die iemand heeft gedaan: wie, wanneer, welk bestand, hoeveel vakjes en of het lukte. Ook mislukte pogingen, met de foutcode erbij — handig als een collega meldt dat het niet werkte. Alleen deze gegevens worden bewaard; de documenten zelf nooit. Deze tab zie jij als beheerder, je collega's niet."
+    },
+    "feedbackGeven": {
+      "titel": "Loop je ergens tegenaan?",
+      "tekst": "Aan de rechterkant van het scherm zit een smal Support-label. Klik daarop en je kunt een melding sturen met een schermafbeelding erbij, en zelfs een kader tekenen om het onderdeel dat je bedoelt. Op een telefoon staat Support in het menu achter de drie streepjes. Dat werkt in elke Motrac-applicatie hetzelfde."
+    },
+    "slot": {
+      "titel": "Dat was hem",
+      "tekst": "Hier kom je altijd terug: via Rondleiding onderin het menu — op een telefoon achter de drie streepjes. Je kunt hem opnieuw doen, meteen bij één onderdeel beginnen, of uitzetten dat hij bij een eerste bezoek vanzelf start."
+    }
+  }
+}

@@ -48,3 +48,60 @@ html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
 
 /* Knoppenrij onder een formulier of resultaat; loopt om op smalle schermen. */
 .offerte-acties{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+
+/* ---- Rondleiding (modules-overstijgend, src/rondleiding) -------------------- */
+
+/* De begeleiding voor nieuwe gebruikers: een schermvullende laag met één
+   uitsnede rond het element van de huidige stap, plus een tekstballon ernaast.
+
+   De uitsnede is bewust ÉÉN element met een enorme box-shadow, en geen vier
+   panelen rond een gat: dat geeft één rechthoek om te positioneren in plaats
+   van vier die bij elke stap opnieuw moeten kloppen, en de verduistering loopt
+   gegarandeerd door tot de schermrand.
+
+   z-index 2000 ligt ruim boven alles wat het pakket gebruikt (hoogste daar is
+   100). Dat is nodig: de rondleiding hoort ook over het mobiele overloopmenu
+   en de Support-widget heen te vallen.
+
+   Kleuren komen uit de tokens, met twee uitzonderingen die geen token KUNNEN
+   zijn: de verduistering en de slagschaduw zijn zwart met alfa, en dat hoort in
+   beide thema's zwart te blijven — een verduistering in --ink wordt in het
+   donkere thema juist licht. rgba() telt niet als hardgecodeerde hexkleur, dus
+   `motrac-ui-check --streng` heeft hier geen bezwaar tegen. Geen enkele klasse
+   hier bestaat in global.css (controle 9). */
+.rondleiding-laag{position:fixed;inset:0;z-index:2000}
+/* Geen anker (welkom, resultaat, slot): dan is er geen uitsnede die de
+   verduistering meebrengt, dus zet de laag zelf hem neer. */
+.rondleiding-laag-dicht{background:rgba(0,0,0,.55)}
+.rondleiding-gat{position:fixed;border-radius:var(--r-m);pointer-events:none;
+  box-shadow:0 0 0 9999px rgba(0,0,0,.55);outline:2px solid var(--brand);outline-offset:2px}
+.rondleiding-tip{position:fixed;width:340px;max-width:calc(100vw - 24px);
+  display:flex;flex-direction:column;gap:var(--space-1);
+  padding:var(--space-4);border:1px solid var(--border-2);border-radius:var(--r-l);
+  background:var(--surface);color:var(--ink);box-shadow:0 12px 32px rgba(0,0,0,.28)}
+.rondleiding-tip:focus{outline:none}
+/* Onder SMAL_SCHERM (768px, zie rondleiding/positie.ts) past er naast een
+   element toch niets: dan tegen een schermrand als vaste balk, met de uitsnede
+   er gewoon naast. Onderaan is de standaard — daar is de ballon het dichtst bij
+   de duim — maar bij een anker in de onderste schermhelft wisselt hij naar
+   boven, anders dekt hij precies af wat hij aanwijst (`smalleZijde`). De
+   safe-area-insets houden hem vrij van de home-indicator en de notch op een
+   iPhone; index.html zet daarvoor `viewport-fit=cover`. */
+.rondleiding-tip-onderaan{left:var(--space-3);right:var(--space-3);top:auto;width:auto;max-width:none;
+  bottom:max(var(--space-3), env(safe-area-inset-bottom))}
+.rondleiding-tip-bovenaan{left:var(--space-3);right:var(--space-3);bottom:auto;width:auto;max-width:none;
+  top:max(var(--space-3), env(safe-area-inset-top))}
+.rondleiding-voortgang{margin:0;font-size:var(--font-caption);font-weight:600;letter-spacing:.04em;
+  text-transform:uppercase;color:var(--muted)}
+.rondleiding-titel{margin:0;font-size:16px;font-weight:700}
+.rondleiding-tekst{margin:0;font-size:13.5px;line-height:1.5}
+.rondleiding-knoppen{display:flex;align-items:center;justify-content:space-between;
+  gap:var(--space-2);margin-top:var(--space-2);flex-wrap:wrap}
+.rondleiding-knoppen-rechts{display:flex;align-items:center;gap:var(--space-2);margin-left:auto}
+@media print{.rondleiding-laag{display:none !important}}
+
+/* De pagina en de kaart waarmee je de rondleiding start (RondleidingKaart.tsx). */
+.rondleiding-pagina{display:flex;flex-direction:column;gap:var(--space-3);max-width:760px}
+.rondleiding-kaart{display:flex;flex-direction:column;gap:var(--space-3)}
+.rondleiding-kaart p{margin:0;font-size:13.5px;line-height:1.5}
+.rondleiding-kaart-knoppen{display:flex;gap:var(--space-2);flex-wrap:wrap}

@@ -115,35 +115,43 @@ export function GeschiedenisPage() {
         <h1 className="page-h">{t('geschiedenis.titel')}</h1>
       </div>
 
-      <Card>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <Hint>{t('geschiedenis.uitleg')}</Hint>
-          {fout && (
-            <Alert tone="bad" actie={<Button small variant="ghost" onClick={laad}>{t('algemeen.opnieuwProberen')}</Button>}>
-              {fout}
-            </Alert>
-          )}
-          {laden && !lijst && <SkeletonText regels={4} />}
-          {lijst && (
-            <>
-              <Hint>{t('geschiedenis.aantal', { aantal: lijst.totaal })}</Hint>
-              {kaarten ? (
-                <KaartLijst items={lijst.items.map(kaartVan)} leeg={t('geschiedenis.leeg')} />
-              ) : (
-                <DataTable
-                  columns={kolommen}
-                  rows={lijst.items}
-                  rowKey={(r) => r.id}
-                  empty={t('geschiedenis.leeg')}
-                  sortering={sortering}
-                  onSorteer={() => undefined}
-                />
-              )}
-              <Pagination pagina={pagina} aantalPaginas={aantalPaginas} onWissel={setPagina} />
-            </>
-          )}
-        </div>
-      </Card>
+      {/* Wikkeldiv om de kaart: `Card` destructureert alleen
+          title/icon/action/children en laat onbekende props vallen, dus het
+          rondleiding-anker kan er niet rechtstreeks op. Om de kaart heen en
+          niet om de tabel: die bestaat pas als het logboek geladen is, en
+          zolang er alleen een skeleton staat zou de rondleiding op een leeg
+          scherm wijzen. */}
+      <div data-rondleiding="geschiedenis-lijst">
+        <Card>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <Hint>{t('geschiedenis.uitleg')}</Hint>
+            {fout && (
+              <Alert tone="bad" actie={<Button small variant="ghost" onClick={laad}>{t('algemeen.opnieuwProberen')}</Button>}>
+                {fout}
+              </Alert>
+            )}
+            {laden && !lijst && <SkeletonText regels={4} />}
+            {lijst && (
+              <>
+                <Hint>{t('geschiedenis.aantal', { aantal: lijst.totaal })}</Hint>
+                {kaarten ? (
+                  <KaartLijst items={lijst.items.map(kaartVan)} leeg={t('geschiedenis.leeg')} />
+                ) : (
+                  <DataTable
+                    columns={kolommen}
+                    rows={lijst.items}
+                    rowKey={(r) => r.id}
+                    empty={t('geschiedenis.leeg')}
+                    sortering={sortering}
+                    onSorteer={() => undefined}
+                  />
+                )}
+                <Pagination pagina={pagina} aantalPaginas={aantalPaginas} onWissel={setPagina} />
+              </>
+            )}
+          </div>
+        </Card>
+      </div>
     </div>
   )
 }

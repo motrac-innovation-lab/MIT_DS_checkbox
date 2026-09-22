@@ -5,9 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "npm run check:i18n && npm run check:fleet-ui && tsc --noEmit && vite build",
+    "build": "npm run check:i18n && npm run check:rondleiding && npm run check:fleet-ui && tsc --noEmit && vite build",
     "check:fleet-ui": "motrac-ui-check --streng",
     "check:i18n": "node scripts/check-i18n-parity.mjs && node scripts/check-i18n-values.mjs",
+    "check:rondleiding": "node scripts/check-rondleiding.mjs",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit"
   },
