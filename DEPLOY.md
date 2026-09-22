@@ -64,8 +64,15 @@ mode geeft één worker per core. Reken daar op bij het kiezen van de server.
 3. **Database**: provisioneer een Postgres (bv. `motrac_ds_checkbox`) op de
    Databases-pagina en plak de verbindingsstring in het Environment-paneel
    van de backend-applicatie als `DATABASE_URL`. Zet daar ook
-   `FRONTEND_ORIGIN` (de frontend-URL), `MOTRAC_BEHEER_URL`
-   (`https://9x24841z85.dev.motrac.app`) en `MOTRAC_VERIFY_KEY`.
+   `FRONTEND_ORIGIN` (de frontend-URL), `MOTRAC_BEHEER_URL` en
+   `MOTRAC_VERIFY_KEY`. **`MOTRAC_BEHEER_URL` is de API van Motrac-beheer,
+   `https://9x24841z85.dev.motrac.app` — niet `https://portaal.motrac.app`.**
+   Dat laatste is de webpagina; die serveert op élk pad de SPA, dus ook op
+   `/api/v1/<slug>/verify`, met status 200 en HTML. De tokencontrole mislukt
+   dan bij elk verzoek en de browser klaagt tegelijk over een ontbrekende
+   `Access-Control-Allow-Origin`, wat de aandacht ten onrechte naar de
+   CORS-allowlist trekt. Hetzelfde geldt voor `VITE_MOTRAC_AUTH_URL` bij de
+   repository-variabelen (kostte 2026-09-22 een halve ochtend).
    `PORT` en `NODE_ENV` zet het platform zelf. Optioneel voor de conversie:
    `DOCX_PDF_ENGINE`/`GOTENBERG_URL` (route B hierboven), `LIBREOFFICE_COMMAND`,
    `FONTS_DIR`, `CONVERSIE_MAX_GELIJKTIJDIG`, `LIBREOFFICE_TIMEOUT_SECONDEN`
@@ -110,7 +117,9 @@ bestand in de upload aantreft.
 
 - `GET https://<backend>/api/_health` → `fase: "klaar"`, alle `envAanwezig`
   op `true`. Bij `mislukt` staat de oorzaak in `fout`.
-- `GET https://<backend>/api/_health/beheer` → `oordeel: "koppeling werkt …"`.
+- `GET https://<backend>/api/_health/beheer` → `bruikbaar: true`. Staat er
+  `false`, dan noemt `oordeel` de oorzaak: een webpagina in plaats van de API,
+  een geweigerde `MOTRAC_VERIFY_KEY`, of een onbekende slug.
 - `GET https://<backend>/api/_health` → `conversie.libreofficeGevonden: true`
   en `conversie.vereisteLettertypenOntbreken: []` (anders: LibreOffice resp.
   de DaxPro-bestanden ontbreken op de server — zie boven).

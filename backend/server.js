@@ -27,6 +27,7 @@ import cors from 'cors'
 import rateLimit from 'express-rate-limit'
 import { makeDb } from './db.js'
 import { runMigrations } from './lib/migrate.js'
+import { beoordeelBeheerAntwoord } from './lib/beheerDiagnose.js'
 import { ConversieFout, MAX_DOCX_BYTES, converteerOfferte } from './lib/conversie.js'
 import { ENGINE as DOCX_PDF_ENGINE, detecteerLibreOffice, engineStatus } from './lib/docxNaarPdf.js'
 import { VEREISTE_LETTERTYPEN, beschikbareLettertypen, fontMappen, ontbrekendeVereisteLettertypen } from './lib/lettertypen.js'
@@ -321,7 +322,7 @@ app.get('/api/_health/beheer', async (req, res) => {
   const raw = process.env.MOTRAC_BEHEER_URL || ''
   let host
   try { host = new URL(raw).host } catch { host = null }
-  if (!host) { res.status(502).json({ oordeel: 'MOTRAC_BEHEER_URL is geen geldige URL — controleer het Environment-paneel', beheerUrlVorm: 'ongeldig' }); return }
+  if (!host) { res.status(502).json({ bruikbaar: false, oordeel: 'MOTRAC_BEHEER_URL is geen geldige URL — controleer het Environment-paneel', beheerUrlVorm: 'ongeldig' }); return }
   const url = `${raw}/api/v1/${APP_SLUG}/verify`
   const ac = new AbortController()
   const timer = setTimeout(() => ac.abort(), 5000)
@@ -334,15 +335,24 @@ app.get('/api/_health/beheer', async (req, res) => {
       signal: ac.signal,
     })
     const body = (await r.text()).slice(0, 200)
-    res.json({
+    // Niet op de statuscode alleen oordelen: de webpagina van Motrac-beheer
+    // antwoordt op élk pad met 200 en HTML. Zie lib/beheerDiagnose.js.
+    const { oordeel, bruikbaar } = beoordeelBeheerAntwoord({
+      status: r.status,
+      contentType: r.headers.get('content-type'),
+      body,
+    })
+    res.status(bruikbaar ? 200 : 502).json({
       beheerHost: host,
       sleutelGevonden: Boolean(key),
       status: r.status,
+      contentType: r.headers.get('content-type'),
       antwoord: body,
-      oordeel: r.status === 200 ? 'koppeling werkt (401 komt dan door het token zelf)' : 'koppeling faalt — dit verklaart de 401 op alles',
+      bruikbaar,
+      oordeel,
     })
   } catch (e) {
-    res.status(502).json({ beheerHost: host, oordeel: 'koppeling onbereikbaar — dit verklaart de 401 op alles', fout: String(e?.message || e) })
+    res.status(502).json({ beheerHost: host, bruikbaar: false, oordeel: 'koppeling onbereikbaar — dit verklaart de 401 op alles', fout: String(e?.message || e) })
   } finally {
     clearTimeout(timer)
   }

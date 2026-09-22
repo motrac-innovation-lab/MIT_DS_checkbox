@@ -220,7 +220,7 @@ echte grens, een `isAdmin`-check in de UI alleen cosmetiek.
 | Route | Auth | Doel |
 |---|---|---|
 | `GET /api/_health` | geen | Opstartdiagnose: fase/fout, welke env-vars gezet zijn (nooit de waarden). Vóór de rate limiter en de auth-gate gemount, dus antwoordt ook in storingsmodus. |
-| `GET /api/_health/beheer` | geen | Doet de `/verify`-call naar Motrac-beheer met een opzettelijk ongeldig token, zodat "koppeling kapot" te onderscheiden is van "token verlopen". |
+| `GET /api/_health/beheer` | geen | Doet de `/verify`-call naar Motrac-beheer met een opzettelijk ongeldig token, zodat "koppeling kapot" te onderscheiden is van "token verlopen". Beoordeelt het antwoord op inhoud en niet op statuscode (`lib/beheerDiagnose.js`): geeft `bruikbaar` + `oordeel`, en 502 zodra de URL geen JSON teruggeeft. |
 | `GET /api/data` | bearer | Bootstrap: `config` (alleen `CONFIG_WHITELIST`, nu leeg). |
 | `POST /api/feedback` | bearer | Doorgifte van de FeedbackWidget naar Motrac-beheer; eigen 12mb-body-limiet vanwege screenshots. |
 | `GET /api/conversies/status` | bearer | Render-engine (LibreOffice gevonden + versie, of Gotenberg bereikbaar) en de aanwezige lettertypen; welke van DaxPro / DaxPro-Light / DaxPro-Medium ontbreken. Voedt de statuskaart. |
