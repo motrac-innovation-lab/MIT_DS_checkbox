@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState, type ChangeEvent, type DragEvent, type FormEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type ChangeEvent, type DragEvent, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Alert, Button, Card, Field, Hint, Input, Progress, StatGrid, Tag, biedBestandAan } from '@motrac/template-ui'
+import { useAuth } from '../../context/AuthContext'
 import { useData } from '../../context/DataContext'
 import { ApiError } from '../../lib/api'
 import { base64NaarBlob, leesBestandAlsBase64, leesbareGrootte } from '../../lib/bestanden'
@@ -19,8 +20,10 @@ import type { ConversieResultaat, ConversieStatus } from '../../types'
  */
 export function ConversiePage() {
   const { t, i18n } = useTranslation('common')
+  const { session } = useAuth()
   const data = useData()
   const taal = i18n.resolvedLanguage ?? i18n.language
+  const isAdmin = session?.role === 'admin'
 
   const [status, setStatus] = useState<ConversieStatus | null>(null)
   const [statusFout, setStatusFout] = useState<string | null>(null)
@@ -32,6 +35,7 @@ export function ConversiePage() {
   // Input uit het pakket geeft geen ref door; een nieuwe key hermount het
   // veld en maakt zo de gekozen bestandsnaam leeg bij "Nieuw document".
   const [invoerSleutel, setInvoerSleutel] = useState(0)
+  const dropzoneRef = useRef<HTMLDivElement>(null)
 
   const laadStatus = useCallback(async () => {
     setStatusFout(null)
@@ -74,6 +78,13 @@ export function ConversiePage() {
     e.preventDefault()
     setSleept(false)
     kies(e.dataTransfer.files?.[0] ?? null)
+    // Een drop vult alleen e.dataTransfer, niet de native input zelf — zonder
+    // dit blijft de knoptekst op "Geen bestand gekozen" staan terwijl de
+    // hint eronder (uit React state) al de gesleepte bestandsnaam toont.
+    const invoerVeld = dropzoneRef.current?.querySelector<HTMLInputElement>('input[type="file"]')
+    if (invoerVeld && e.dataTransfer.files) {
+      invoerVeld.files = e.dataTransfer.files
+    }
   }
 
   function download(r: ConversieResultaat) {
@@ -126,55 +137,58 @@ export function ConversiePage() {
         <h1 className="page-h">{t('conversie.titel')}</h1>
       </div>
 
-      <Card title={t('conversie.status.titel')} icon="shield-check">
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {statusFout && (
-            <Alert tone="bad" actie={<Button small variant="ghost" onClick={laadStatus}>{t('algemeen.opnieuwProberen')}</Button>}>
-              {statusFout}
-            </Alert>
-          )}
-          {!status && !statusFout && <Hint>{t('algemeen.gegevensLaden')}</Hint>}
-          {status && !status.beschikbaar && (
-            <Alert tone="bad" titel={t('conversie.status.engineOntbreektTitel')}>
-              {t('conversie.status.engineOntbreekt', { engine: status.engine })}
-            </Alert>
-          )}
-          {status && status.beschikbaar && (
-            <Hint>
-              {status.libreoffice?.versie
-                ? t('conversie.status.gereedMetVersie', { versie: status.libreoffice.versie })
-                : t('conversie.status.gereed', { engine: status.engine })}
-            </Hint>
-          )}
-          {status && (
-            <div className="offerte-lettertypen" aria-label={t('conversie.status.lettertypen')}>
-              {vereist.map((naam) => (
-                <Tag key={naam} tone={!viaFontmappen ? 'neutral' : ontbrekendeFonts.includes(naam) ? 'warn' : 'ok'}>
-                  {naam}
-                  {!viaFontmappen
-                    ? ` · ${t('conversie.status.onbekend')}`
-                    : ontbrekendeFonts.includes(naam) ? ` · ${t('conversie.status.ontbreekt')}` : ''}
-                </Tag>
-              ))}
-              {overigeFamilies.map((f) => (
-                <Tag key={f} tone="neutral">{f}</Tag>
-              ))}
-            </div>
-          )}
-          {status && !viaFontmappen && (
-            <Hint>{t('conversie.status.fontsExtern', { engine: status.engine })}</Hint>
-          )}
-          {ontbrekendeFonts.length > 0 && (
-            <Alert tone="warn" titel={t('conversie.status.fontsOntbrekenTitel')}>
-              {t('conversie.status.fontsOntbreken', { fonts: ontbrekendeFonts.join(', ') })}
-            </Alert>
-          )}
-        </div>
-      </Card>
+      {isAdmin && (
+        <Card title={t('conversie.status.titel')} icon="shield-check">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {statusFout && (
+              <Alert tone="bad" actie={<Button small variant="ghost" onClick={laadStatus}>{t('algemeen.opnieuwProberen')}</Button>}>
+                {statusFout}
+              </Alert>
+            )}
+            {!status && !statusFout && <Hint>{t('algemeen.gegevensLaden')}</Hint>}
+            {status && !status.beschikbaar && (
+              <Alert tone="bad" titel={t('conversie.status.engineOntbreektTitel')}>
+                {t('conversie.status.engineOntbreekt', { engine: status.engine })}
+              </Alert>
+            )}
+            {status && status.beschikbaar && (
+              <Hint>
+                {status.libreoffice?.versie
+                  ? t('conversie.status.gereedMetVersie', { versie: status.libreoffice.versie })
+                  : t('conversie.status.gereed', { engine: status.engine })}
+              </Hint>
+            )}
+            {status && (
+              <div className="offerte-lettertypen" aria-label={t('conversie.status.lettertypen')}>
+                {vereist.map((naam) => (
+                  <Tag key={naam} tone={!viaFontmappen ? 'neutral' : ontbrekendeFonts.includes(naam) ? 'warn' : 'ok'}>
+                    {naam}
+                    {!viaFontmappen
+                      ? ` · ${t('conversie.status.onbekend')}`
+                      : ontbrekendeFonts.includes(naam) ? ` · ${t('conversie.status.ontbreekt')}` : ''}
+                  </Tag>
+                ))}
+                {overigeFamilies.map((f) => (
+                  <Tag key={f} tone="neutral">{f}</Tag>
+                ))}
+              </div>
+            )}
+            {status && !viaFontmappen && (
+              <Hint>{t('conversie.status.fontsExtern', { engine: status.engine })}</Hint>
+            )}
+            {ontbrekendeFonts.length > 0 && (
+              <Alert tone="warn" titel={t('conversie.status.fontsOntbrekenTitel')}>
+                {t('conversie.status.fontsOntbreken', { fonts: ontbrekendeFonts.join(', ') })}
+              </Alert>
+            )}
+          </div>
+        </Card>
+      )}
 
       <Card title={t('conversie.upload.titel')} icon="file-text">
         <form onSubmit={converteer} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div
+            ref={dropzoneRef}
             className={sleept ? 'offerte-dropzone offerte-dropzone-actief' : 'offerte-dropzone'}
             onDragOver={(e) => { e.preventDefault(); setSleept(true) }}
             onDragLeave={() => setSleept(false)}
