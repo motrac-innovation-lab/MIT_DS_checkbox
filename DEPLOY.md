@@ -25,7 +25,7 @@ de statuskaart "omzetten niet mogelijk" en geeft `POST /api/conversies` een
 503 `CONVERSIE_ENGINE_ONBESCHIKBAAR`. Controle na een deploy:
 `GET /api/_health` → `conversie.libreofficeGevonden: true`.
 
-**Lettertypen.** DaxPro, DaxPro-Light en DaxPro-Medium moeten als `.ttf`/`.otf`
+**Lettertypen.** DaxPro, DaxPro-Bold, DaxPro-Light en DaxPro-Medium moeten als `.ttf`/`.otf`
 beschikbaar zijn, anders vervangt LibreOffice ze en verschuift de layout. Drie
 plekken, in volgorde van voorkeur: `backend/fonts/` in het repo (gaat mee in de
 deploy-boom), `/uploads/fonts/` (persistente opslag aanzetten op het dashboard;

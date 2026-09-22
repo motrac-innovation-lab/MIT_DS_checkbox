@@ -33,7 +33,7 @@ export class MockDataProvider implements DataProvider {
       beschikbaar: true,
       libreoffice: { versie: '24.2.7.2 (mock)' },
       lettertypen: {
-        vereist: ['DaxPro', 'DaxPro-Light', 'DaxPro-Medium'],
+        vereist: ['DaxPro', 'DaxPro-Bold', 'DaxPro-Light', 'DaxPro-Medium'],
         ontbreekt: ['DaxPro-Medium'],
         bestanden: [
           { bestand: 'DejaVuSans.ttf', families: ['DejaVu Sans'] },

@@ -71,7 +71,7 @@ describe('offerte-conversie', { skip: slaOverZonderDb }, () => {
     assert.equal(res.status, 200)
     assert.equal(res.json.engine, 'soffice')
     assert.equal(typeof res.json.beschikbaar, 'boolean')
-    assert.deepEqual(res.json.lettertypen.vereist, ['DaxPro', 'DaxPro-Light', 'DaxPro-Medium'])
+    assert.deepEqual(res.json.lettertypen.vereist, ['DaxPro', 'DaxPro-Bold', 'DaxPro-Light', 'DaxPro-Medium'])
     assert.ok(res.json.lettertypen.bestanden.some((b) => b.families.includes('DejaVu Sans')))
     assert.equal(res.json.lettertypen.viaFontmappen, true, 'bij soffice gaan de fontmappen van de server mee in de render')
   })
@@ -89,7 +89,7 @@ describe('offerte-conversie', { skip: slaOverZonderDb }, () => {
       assert.equal(status.json.beschikbaar, false, 'poort 9 (discard) is geen Gotenberg')
       assert.equal(status.json.lettertypen.viaFontmappen, false)
       // De meting over deze server blijft wél eerlijk: DaxPro staat hier niet.
-      assert.deepEqual(status.json.lettertypen.ontbreekt, ['DaxPro', 'DaxPro-Light', 'DaxPro-Medium'])
+      assert.deepEqual(status.json.lettertypen.ontbreekt, ['DaxPro', 'DaxPro-Bold', 'DaxPro-Light', 'DaxPro-Medium'])
 
       const health = await extern.api('/api/_health')
       assert.equal(health.json.conversie.engine, 'gotenberg')

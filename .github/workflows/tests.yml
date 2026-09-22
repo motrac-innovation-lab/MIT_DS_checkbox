@@ -6,7 +6,10 @@ name: Tests
 # een PR-branch zou elke commit de suite dan twee keer draaien.
 #
 # Zelfde opbouw als mit-salessupport/.github/workflows/tests.yml (de norm-app
-# van de fleet) — wijk hier niet van af zonder dat daar ook te doen.
+# van de fleet) — wijk hier niet van af zonder dat daar ook te doen. Eén
+# bewuste uitzondering, met toestemming van Mark (2026-09-22): de stap die
+# LibreOffice Writer installeert. Die hoort niet in de norm-app thuis, want
+# alleen deze app rendert documenten. Zie de toelichting bij die stap.
 on:
   workflow_call: {}
   pull_request: {}
@@ -16,9 +19,9 @@ permissions:
 
 jobs:
   backend:
-    name: Backend (node:test + Postgres)
+    name: Backend (node:test + Postgres + LibreOffice)
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     # De DB-tests (migraties, auth-grens, storingsmodus) draaien tegen een
     # échte Postgres en niet tegen een stub. Zonder deze service slaan ze
@@ -52,6 +55,23 @@ jobs:
       - name: Install backend dependencies
         working-directory: backend
         run: npm ci --no-audit --no-fund --prefer-offline
+
+      # Afwijking van de fleet-norm (mit-salessupport/tests.yml), met
+      # uitdrukkelijke toestemming van Mark in de chat op 2026-09-22: deze app
+      # is de enige in de fleet die LibreOffice nodig heeft. De runner brengt
+      # geen Writer-filter mee, en zonder dat filter laadt soffice geen enkele
+      # .docx — conversie.test.js testte dan alleen de 503-tak en de hele
+      # render-keten (checkbox-ankers, lettertype-vergelijking) bleef in CI
+      # ongetest. Precies daar zat de valse "Lettertype vervangen"-melding.
+      #
+      # libreoffice-writer trekt core, common en het Writer-filter als Depends
+      # mee; de enige Recommends is libreoffice-math en die heeft de conversie
+      # niet nodig — vandaar --no-install-recommends.
+      - name: LibreOffice Writer (de render-engine van de conversietests)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends libreoffice-writer
+          soffice --version
 
       - name: Run backend tests
         working-directory: backend

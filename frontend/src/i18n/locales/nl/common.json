@@ -118,7 +118,7 @@
       "onbekend": "onbekend",
       "fontsOntbrekenTitel": "Niet alle offerte-lettertypen staan op de server",
       "fontsOntbreken": "Ontbreekt: {{fonts}}. LibreOffice vervangt deze door een ander lettertype en de layout van de PDF kan verschuiven. Zet de fontbestanden in backend/fonts/ (zie de README daar).",
-      "fontsExtern": "De lettertypen komen bij deze engine ({{engine}}) uit de externe LibreOffice-dienst; deze server kan vooraf niet zien welke daar staan. Zet DaxPro, DaxPro-Light en DaxPro-Medium in de image van die dienst (zie DEPLOY.md, route B). Na elke omzetting meldt het resultaat welke lettertypen zijn vervangen."
+      "fontsExtern": "De lettertypen komen bij deze engine ({{engine}}) uit de externe LibreOffice-dienst; deze server kan vooraf niet zien welke daar staan. Zet DaxPro, DaxPro-Bold, DaxPro-Light en DaxPro-Medium in de image van die dienst (zie DEPLOY.md, route B). Na elke omzetting meldt het resultaat welke lettertypen zijn vervangen."
     },
     "upload": {
       "titel": "Word-document",

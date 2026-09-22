@@ -1,5 +1,6 @@
 // Lettertypen voor de DOCX→PDF-render — de eis van Mark (2026-09-21): een
-// geüploade offerte in DaxPro / DaxPro-Light / DaxPro-Medium moet in de PDF
+// geüploade offerte in DaxPro / DaxPro-Bold / DaxPro-Light / DaxPro-Medium
+// moet in de PDF
 // hetzelfde lettertype houden.
 //
 // LibreOffice kan een lettertype alleen gebruiken als het bestand ervoor
@@ -21,8 +22,14 @@ import { fileURLToPath } from 'node:url'
 
 const backendDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 
-/** De families die een Motrac-offerte gebruikt; de statuspagina meldt welke ontbreken. */
-export const VEREISTE_LETTERTYPEN = ['DaxPro', 'DaxPro-Light', 'DaxPro-Medium']
+/**
+ * De families die een Motrac-offerte gebruikt; de statuspagina meldt welke
+ * ontbreken. DaxPro-Bold staat er sinds 2026-09-22 bij: op de gemeten offerte
+ * zet hij 52 runs zichtbare tekst, dus zonder dat bestand valt LibreOffice
+ * terug en verschuift de layout — de statuskaart hoort dat vooraf te melden en
+ * niet pas als resultaat van een conversie.
+ */
+export const VEREISTE_LETTERTYPEN = ['DaxPro', 'DaxPro-Bold', 'DaxPro-Light', 'DaxPro-Medium']
 
 const FONT_EXTENSIES = /\.(ttf|otf|ttc)$/i
 

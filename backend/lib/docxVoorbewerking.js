@@ -16,7 +16,8 @@
 // byte-voor-byte mee, zodat het document geldig blijft. Daarnaast worden de
 // in het document gebruikte lettertypen verzameld, zodat na het renderen te
 // controleren is of LibreOffice ze ook echt gebruikt heeft (de eis van Mark:
-// DaxPro / DaxPro-Light / DaxPro-Medium moeten in de PDF behouden blijven).
+// DaxPro / DaxPro-Bold / DaxPro-Light / DaxPro-Medium moeten in de PDF
+// behouden blijven).
 import { unzipSync, zipSync, strFromU8, strToU8 } from 'fflate'
 
 /** Zip-onderdelen die getransformeerd worden; de rest passeert onaangeroerd. */
