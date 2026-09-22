@@ -66,12 +66,37 @@ describe('offerte-conversie', { skip: slaOverZonderDb }, () => {
     assert.equal(typeof res.json.beschikbaar, 'boolean')
     assert.deepEqual(res.json.lettertypen.vereist, ['DaxPro', 'DaxPro-Light', 'DaxPro-Medium'])
     assert.ok(res.json.lettertypen.bestanden.some((b) => b.families.includes('DejaVu Sans')))
+    assert.equal(res.json.lettertypen.viaFontmappen, true, 'bij soffice gaan de fontmappen van de server mee in de render')
+  })
+
+  // Bij Gotenberg gaat alleen de .docx naar de dienst; de fontmappen van deze
+  // server zeggen dan niets over de PDF. De status en /api/_health moeten dat
+  // melden, anders wijst de statuskaart naar backend/fonts/ terwijl de fonts
+  // in de Gotenberg-image horen (gezien op de statuskaart, 2026-09-22).
+  test('bij de Gotenberg-engine meldt de status dat de fontmappen niet meetellen', async () => {
+    const extern = await startBackend({ extraEnv: { DOCX_PDF_ENGINE: 'gotenberg', GOTENBERG_URL: 'http://127.0.0.1:9' } })
+    try {
+      const status = await extern.api('/api/conversies/status', { token: TOKEN_GEBRUIKER })
+      assert.equal(status.status, 200)
+      assert.equal(status.json.engine, 'gotenberg')
+      assert.equal(status.json.beschikbaar, false, 'poort 9 (discard) is geen Gotenberg')
+      assert.equal(status.json.lettertypen.viaFontmappen, false)
+      // De meting over deze server blijft wél eerlijk: DaxPro staat hier niet.
+      assert.deepEqual(status.json.lettertypen.ontbreekt, ['DaxPro', 'DaxPro-Light', 'DaxPro-Medium'])
+
+      const health = await extern.api('/api/_health')
+      assert.equal(health.json.conversie.engine, 'gotenberg')
+      assert.equal(health.json.conversie.viaFontmappen, false)
+    } finally {
+      await extern.stop()
+    }
   })
 
   test('/api/_health meldt de conversie-engine zonder gevoelige details', async () => {
     const res = await backend.api('/api/_health')
     assert.equal(res.json.conversie.engine, 'soffice')
     assert.ok(['boolean'].includes(typeof res.json.conversie.libreofficeGevonden) || res.json.conversie.libreofficeGevonden === null)
+    assert.equal(res.json.conversie.viaFontmappen, true)
   })
 
   test('zonder bestand een 400 VALIDATION', async () => {

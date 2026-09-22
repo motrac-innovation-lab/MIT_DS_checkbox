@@ -42,6 +42,12 @@ export interface ConversieStatus {
     vereist: string[]
     ontbreekt: string[]
     bestanden: { bestand: string; families: string[] }[]
+    /**
+     * Gaan de fontbestanden van de server mee in de render? Alleen bij de
+     * lokale soffice-engine; bij Gotenberg komen de lettertypen uit de image
+     * van de dienst en zegt `ontbreekt` niets over de PDF.
+     */
+    viaFontmappen: boolean
   }
   maxDocxBytes: number
 }

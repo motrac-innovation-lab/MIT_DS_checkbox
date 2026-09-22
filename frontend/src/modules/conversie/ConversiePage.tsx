@@ -108,11 +108,16 @@ export function ConversiePage() {
   }
 
   const serverKlaar = status?.beschikbaar ?? false
-  const ontbrekendeFonts = status?.lettertypen.ontbreekt ?? []
+  // Bij een externe engine (Gotenberg) gaan de fontbestanden van deze server
+  // niet mee in de render: dan is "ontbreekt" geen uitspraak over de PDF en
+  // tonen we de vereiste families als "onbekend" — het resultaatblok meldt
+  // per conversie welke lettertypen echt vervangen zijn.
+  const viaFontmappen = status?.lettertypen.viaFontmappen ?? true
+  const ontbrekendeFonts = viaFontmappen ? (status?.lettertypen.ontbreekt ?? []) : []
   const vereist = status?.lettertypen.vereist ?? []
   const sleutel = (naam: string) => naam.replace(/[^a-z0-9]/gi, '').toLowerCase()
   // Extra families op de server die geen vereist lettertype zijn (bv. DejaVu Sans voor het ☐).
-  const overigeFamilies = (status?.lettertypen.bestanden.flatMap((b) => b.families) ?? [])
+  const overigeFamilies = (viaFontmappen ? status?.lettertypen.bestanden.flatMap((b) => b.families) ?? [] : [])
     .filter((f, i, alle) => alle.indexOf(f) === i && !vereist.some((v) => sleutel(v) === sleutel(f)))
 
   return (
@@ -144,15 +149,20 @@ export function ConversiePage() {
           {status && (
             <div className="offerte-lettertypen" aria-label={t('conversie.status.lettertypen')}>
               {vereist.map((naam) => (
-                <Tag key={naam} tone={ontbrekendeFonts.includes(naam) ? 'warn' : 'ok'}>
+                <Tag key={naam} tone={!viaFontmappen ? 'neutral' : ontbrekendeFonts.includes(naam) ? 'warn' : 'ok'}>
                   {naam}
-                  {ontbrekendeFonts.includes(naam) ? ` · ${t('conversie.status.ontbreekt')}` : ''}
+                  {!viaFontmappen
+                    ? ` · ${t('conversie.status.onbekend')}`
+                    : ontbrekendeFonts.includes(naam) ? ` · ${t('conversie.status.ontbreekt')}` : ''}
                 </Tag>
               ))}
               {overigeFamilies.map((f) => (
                 <Tag key={f} tone="neutral">{f}</Tag>
               ))}
             </div>
+          )}
+          {status && !viaFontmappen && (
+            <Hint>{t('conversie.status.fontsExtern', { engine: status.engine })}</Hint>
           )}
           {ontbrekendeFonts.length > 0 && (
             <Alert tone="warn" titel={t('conversie.status.fontsOntbrekenTitel')}>
