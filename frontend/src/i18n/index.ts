@@ -4,8 +4,10 @@ import { DEFAULT_LANGUAGE, LANGUAGE_STORAGE_KEY, SUPPORTED_LANGUAGES } from './l
 
 import commonNl from './locales/nl/common.json'
 import authNl from './locales/nl/auth.json'
+import rondleidingNl from './locales/nl/rondleiding.json'
 import commonEn from './locales/en/common.json'
 import authEn from './locales/en/auth.json'
+import rondleidingEn from './locales/en/rondleiding.json'
 
 // Elke namespace staat hier met de hand geregistreerd. Kleine JSON-bestanden
 // die Vite rechtstreeks meebundelt, dus geen async laden en geen <Suspense>.
@@ -15,10 +17,12 @@ export const resources = {
   nl: {
     common: commonNl,
     auth: authNl,
+    rondleiding: rondleidingNl,
   },
   en: {
     common: commonEn,
     auth: authEn,
+    rondleiding: rondleidingEn,
   },
 } as const
 

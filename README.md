@@ -54,7 +54,7 @@ cd frontend
 npm install
 cp .env.example .env   # VITE_API_BASE_URL / VITE_MOTRAC_AUTH_URL / VITE_MOTRAC_AUTH_SLUG
 npm run dev            # http://localhost:5173
-npm run build          # i18n-check + fleet-UI-poort + typecheck + productiebuild
+npm run build          # i18n-check + rondleiding-check + fleet-UI-poort + typecheck + productiebuild
 
 # Backend
 cd backend
@@ -86,10 +86,11 @@ frontend/src/
   lib/dataProvider.ts       Het contract van de datalaag; apiDataProvider.ts · mockDataProvider.ts
   lib/bestanden.ts          File ↔ base64, leesbare grootte
   lib/feedback.ts           Transport van de FeedbackWidget naar POST /api/feedback
-  i18n/                     languages.ts · index.ts · locales/{nl,en}/{common,auth}.json
+  i18n/                     languages.ts · index.ts · locales/{nl,en}/{common,auth,rondleiding}.json
   modules/auth/             LoginPage · ChangePasswordPage
   modules/conversie/        ConversiePage — statuskaart, upload, resultaat + download
   modules/geschiedenis/     GeschiedenisPage — het conversies-logboek (admin)
+  rondleiding/              De ingebouwde uitleg: stappen.ts (data) · RondleidingContext · overlay · /rondleiding
   App.tsx                   Routes + AppShell + UiTextProvider-brug
   main.tsx                  Providers + router
 backend/

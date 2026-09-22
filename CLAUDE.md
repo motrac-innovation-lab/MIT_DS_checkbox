@@ -50,11 +50,12 @@ build:lib`** in template-ui — niet `build`, dat is diens demo-app).
 # Frontend
 cd frontend
 npm install
-npm run dev            # Vite dev server, http://localhost:5173
-npm run build          # check:i18n + check:fleet-ui + tsc --noEmit + vite build — DE poort
-npm run typecheck      # tsc --noEmit only
-npm run check:i18n     # NL/EN-pariteit + onvertaalde waarden
-npm run check:fleet-ui # motrac-ui-check --streng (de negen fleet-afspraken, zie hieronder)
+npm run dev              # Vite dev server, http://localhost:5173
+npm run build            # check:i18n + check:rondleiding + check:fleet-ui + tsc --noEmit + vite build — DE poort
+npm run typecheck        # tsc --noEmit only
+npm run check:i18n       # NL/EN-pariteit + onvertaalde waarden
+npm run check:rondleiding # de rondleiding tegen de app (ankers, routes, teksten)
+npm run check:fleet-ui   # motrac-ui-check --streng (de negen fleet-afspraken, zie hieronder)
 
 # Backend
 cd backend
@@ -113,8 +114,10 @@ PR op `main`) of een vraag aan Mark.
      `motrac-template-ui/docs/UI-UX-PLAN-PER-APP.md` §1 voor de volledige norm.
 
 2. **`npm run build` in `frontend/` is de poort, en die wordt niet afgezwakt.**
-   `check:i18n && check:fleet-ui && tsc --noEmit && vite build`, met
-   `motrac-ui-check --streng` (niet zonder `--streng`). Een rode check los je
+   `check:i18n && check:rondleiding && check:fleet-ui && tsc --noEmit && vite
+   build`, met `motrac-ui-check --streng` (niet zonder `--streng`).
+   `check:rondleiding` is er op 2026-09-22 bij gekomen met de rondleiding (zie
+   hieronder) — een controle ERBIJ, nooit eentje eraf. Een rode check los je
    op in de code, niet door de check te verwijderen, een bestand uit te
    sluiten of `/* fleet-ui: negeer */` te strooien. `scripts/check-i18n-parity.mjs`
    is een fleet-brede kopie en wordt hier niet uitgebreid; waardenuitzonderingen
@@ -135,7 +138,10 @@ PR op `main`) of een vraag aan Mark.
    - `frontend/src/App.tsx` — `UiTekstBrug` (`UiTextProvider` om de hele
      routeboom), `TaalKiezer` op `i18n.resolvedLanguage`, de shell-bedrading
      met `AppShell` + `FeedbackWidget mobielInMenu` + `feedbackMenuTab` +
-     `useFeedbackPad`, en tabs met een ECHT pad (nooit `to="/"`).
+     `useFeedbackPad`, en tabs met een ECHT pad (nooit `to="/"`). De
+     `RondleidingProvider` + `<Rondleiding />` eromheen en de tab
+     `/rondleiding` horen sinds 2026-09-22 bij die bedrading; al het andere
+     hierboven is onveranderd.
    - `frontend/src/context/AuthContext.tsx` + `frontend/src/lib/motracAuth.ts`
      — de dunne brug over `@motrac/auth-client`; login/sessie/SSO-logica
      wordt hier niet nagebouwd. De rol-afleiding (gebruiker/admin, onbekend
@@ -318,10 +324,106 @@ De keten, per upload, in `backend/lib/`:
 Breid de checkbox-detectie **niet** uit zonder de tests opnieuw tegen echte
 Motrac-offertes te valideren: √ in de service-inclusies is geen checkbox.
 
+### Rondleiding (`frontend/src/rondleiding/`, tab `/rondleiding`)
+
+De ingebouwde uitleg voor nieuwe gebruikers, op verzoek van Mark (2026-09-22)
+geport uit `motrac-toegangsbeheer/src/rondleiding/` — dat het op zijn beurt uit
+`mit-salessupport` haalde, de eerste app van de vloot met een rondleiding. Een
+schermvullende laag met één uitsnede rond het element van de huidige stap en
+een tekstballon ernaast, die zichzelf langs de tabs navigeert. Dezelfde opbouw
+als daar, vertaald naar TypeScript: `stappen.ts` (de stappen als DATA),
+`opslag.ts` (localStorage), `positie.ts` (waar de ballon komt),
+`RondleidingContext.tsx` (volgorde, rollen, navigatie), `Rondleiding.tsx`
+(tekenen en meten), plus `RondleidingKaart.tsx` en `RondleidingPagina.tsx`.
+
+**Het zit NIET in `@motrac/template-ui`, en dat is nagekeken (0.10.0), niet
+aangenomen.** Wat het pakket wél levert en wat deze module dus gebruikt in
+plaats van na te bouwen: `useFocusTrap` (Tab-trap, Escape, focus-teruggave —
+DESIGN_SYSTEM.md daar eist dat elke app-eigen overlay die gebruikt), `Button`,
+`Card`, `Checkbox`, `Hint`, `Icon`, `SectionLabel`, en de plek in de zijbalk
+(`Tab.onderaan` + `alleenInMenu`). Bewust **geen tour-bibliotheek**
+(react-joyride, driver.js): dat is de vloot-afspraak "geen bibliotheek per
+app", en zo'n pakket brengt eigen kleuren, z-indexen en focusgedrag mee terwijl
+alles hier op de tokens van het pakket hoort te staan.
+
+Zes dingen die je niet ongemerkt moet omgooien:
+- **De rondleiding is ROLBEWUST, en dat is de helft van de functie.** Een stap
+  met `alleenAdmin: true` valt weg voor wie de rol `admin` niet heeft: een
+  gewone gebruiker krijgt 7 stappen, een beheerder 9 (de serverstatuskaart en
+  het conversielogboek erbij). De rol komt uit `session.role` — dezelfde
+  afleiding die bepaalt of die twee schermen überhaupt gerenderd worden, dus
+  een onbekende rol valt via AuthContext terug op `gebruiker` en krijgt vanzelf
+  de korte rondleiding. Er is geen aparte regel voor.
+- **Een anker telt pas als het ook echt een rechthoek op het scherm heeft**
+  (`zichtbaarAnker()` in `Rondleiding.tsx`). Dat is geen voorzorg: `AppShell`
+  rendert zowel de zijbalk als de tabbalk en verbergt er één van, dus
+  `a[href="/converteren"]` levert op élke breedte twee treffers op waarvan er
+  één 0x0 op positie 0,0 staat. Met een kale `querySelector` werd de uitsnede
+  op een telefoon een vierkantje van twaalf pixels linksboven. Gemeten op 390,
+  900 en 1440px.
+- **Op een smal scherm plakt de ballon boven- OF onderaan** (`smalleZijde()` in
+  `positie.ts`). Onderaan is de standaard, maar een anker in de onderste
+  schermhelft — op een telefoon is dat de tabbalk, precies waar de
+  navigatiestap naar wijst — gaat er anders volledig achter schuil. Gemeten op
+  390px: anker op y 712-758 van 780, ballon op 528-768.
+- **De stap "Wat je terugkrijgt" heeft BEWUST geen anker.** Het resultaatblok
+  bestaat pas ná een echte conversie, en de overlay vangt onderweg elke klik af
+  — er valt dus per definitie niets aan te wijzen. Een optionele stap zou bij
+  vrijwel iedereen worden overgeslagen; een verplichte zou eerst anderhalve
+  seconde naar een verduisterd scherm laten staren. Een gecentreerde kaart
+  vertelt het gewoon.
+- **Een stap die nog naar zijn anker zoekt toont GEEN tekst, alleen de
+  verduistering** (`ankerStand` in `Rondleiding.tsx`). De stand hoort bij een
+  STAP-id, want het effect dat hem bijwerkt draait ná het render van de nieuwe
+  stap; zonder die koppeling erft een gecentreerde stap de uitsnede van de stap
+  ervoor. Om dezelfde reden hangt de uitsnede aan `eigenStand === 'gevonden'`
+  en niet alleen aan `ankerRect`. En `slaOver` gaat via een ref de zoeklus in,
+  niet via de dependency-array: `afsluiten` in de context hangt aan
+  `location.pathname`, dus die functie krijgt bij elke navigatie een nieuwe
+  identiteit en het zoekeffect begon dan telkens opnieuw bij poging 0 — een
+  optionele stap bleef hangen in plaats van over te slaan.
+- **Ankers zijn `data-rondleiding`-attributen op ONZE eigen markup.** Nooit op
+  een klasse van `@motrac/template-ui`: die markup mag bij een pakketupdate
+  wijzigen en dan verdwijnt de uitleg stilletjes. Op een `<Button>` mag het
+  attribuut rechtstreeks (die geeft onbekende props door aan de echte
+  `<button>`); op `<Card>` juist NIET — die destructureert alleen
+  `title`/`icon`/`action`/`children` en laat de rest vallen, dus daar hoort een
+  wikkeldiv omheen. Een `a[href="/<tab>"]`-selector voor de navigatie mag ook,
+  maar altijd als `optioneel`.
+
+**`frontend/scripts/check-rondleiding.mjs` is de poort eromheen**, mee in
+`npm run build`. Hij valt om als een stap geen NL- of EN-tekst heeft, als er
+tekst is van een stap die niet meer bestaat, als een anker uit `stappen.ts`
+nergens in de app staat (of andersom), of als een stap naar een route wijst die
+geen tabpad in `App.tsx` is — dat laatste stuurt de catch-all-route door naar
+`/converteren` en dan draait de rondleiding rond. In `mit-salessupport` is de
+rondleiding twee keer stilletjes achtergebleven bij de app vóórdat daar zo'n
+controle omheen kwam; een comment is geen poort. Wat een stap ZEGT blijft
+mensenwerk.
+
+De check leest `stappen.ts` als TEKST en zet het `STAPPEN`-literal om naar
+JSON: de deploy-job draait Node 20 en die kan geen TypeScript importeren. Dat
+stelt één eis aan dat bestand — elke stap is één plat object-literal met enkele
+aanhalingstekens — en die staat daar als comment. Wijkt een regel af, dan valt
+de check hard om (gecontroleerd met een template-literal en met een
+ontbrekende stap); hij slaat nooit stilletjes een stap over.
+
+Een stap toevoegen is dus: één regel in `stappen.ts`, twee sleutels in beide
+`rondleiding.json`s, en zo nodig één `data-rondleiding` in het scherm.
+
+**Voortgang staat in `localStorage` onder `mit-ds-checkbox-rondleiding`, per
+gebruiker gescoped** (op `session.user.id`, want een e-mailadres kan wijzigen).
+Geen kolom in de database: het is een voorkeur van één persoon op één apparaat,
+en pc's in de binnendienst worden gedeeld — zonder scoping zou de tweede
+medewerker op zo'n pc de rondleiding nooit te zien krijgen. Hij start één keer
+vanzelf op `/converteren` voor wie hem nog nooit zag; wie hem afsloot of
+uitzette krijgt hem nooit meer vanzelf. `RONDLEIDING_VERSIE` in `opslag.ts`
+omhoog = iedereen ziet hem opnieuw.
+
 ## i18n
 
-Twee talen (NL is de referentie, EN de vertaling) en twee namespaces:
-`common`, `auth`. Elke namespace staat met de hand geregistreerd in
+Twee talen (NL is de referentie, EN de vertaling) en drie namespaces:
+`common`, `auth`, `rondleiding`. Elke namespace staat met de hand geregistreerd in
 `frontend/src/i18n/index.ts` — toevoegen = twee JSON-bestanden + twee imports
 + twee regels in `resources`. `npm run build` draait `check:i18n` als eerste
 stap: `check-i18n-parity.mjs` (sleutelpariteit, fleet-kopie) en
