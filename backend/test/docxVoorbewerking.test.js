@@ -12,6 +12,7 @@ import {
   transformeerDocumentXml,
   voorbewerkDocx,
 } from '../lib/docxVoorbewerking.js'
+import { vergelijkLettertypen } from '../lib/lettertypen.js'
 
 const W = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"'
 const SYM = '<w:sym w:font="Wingdings 2" w:char="F0A3"/>'
@@ -106,9 +107,60 @@ test('verzamelt de gevraagde lettertypen uit runs, docDefaults en de basedOn-ket
     + '<w:style w:type="paragraph" w:styleId="Ongebruikt"><w:rPr><w:rFonts w:ascii="Comic Sans MS"/></w:rPr></w:style>'
     + '</w:styles>'
   const uit = voorbewerkDocx(maakDocx({ 'word/document.xml': body, 'word/styles.xml': styles }))
-  assert.deepEqual(uit.lettertypen, ['Calibri', 'DaxPro', 'DaxPro-Light', 'DaxPro-Medium', 'Georgia', 'Times New Roman'])
+  assert.deepEqual(uit.lettertypen, ['Calibri', 'DaxPro', 'DaxPro-Light', 'DaxPro-Medium', 'Georgia'])
   assert.ok(!uit.lettertypen.includes('Wingdings 2'), 'symboollettertypen tellen niet mee')
   assert.ok(!uit.lettertypen.includes('Comic Sans MS'), 'een ongebruikte stijl telt niet mee')
+  // Times New Roman staat hierboven alleen als w:cs in docDefaults: een
+  // terugval voor complex script, nooit zichtbare tekst. Zie de regressietest.
+  assert.ok(!uit.lettertypen.includes('Times New Roman'), 'w:cs is geen gevraagd lettertype')
+  // De stijlverwijzing zelf zit in <w:pPr> (w:pStyle="Kop1") en moet ondanks
+  // het overslaan van <w:pPr> voor lettertypen wél gevolgd blijven worden.
+  assert.ok(uit.lettertypen.includes('DaxPro-Light'), 'Kop1 komt uit een w:pStyle in <w:pPr>')
+})
+
+// Regressie voor de valse "Lettertype vervangen"-melding (2026-09-22). Word
+// schrijft in vrijwel elk document lettertype-terugvallen die nooit gerenderd
+// worden: w:cs (complex script — Arabisch/Hebreeuws), w:eastAsia (CJK) en de
+// opmaak van de alineamarkering in <w:pPr>. Die komen dus nooit in de PDF,
+// waarna vergelijkLettertypen() ze als "vervangen" meldde terwijl er niets
+// vervangen was. Op een echte Motrac-offerte leverde dat de melding
+// "LibreOffice had Arial, Calibri-Bold, Consolas, Times New Roman niet" op,
+// terwijl geen letter van die vier in het document staat — Arial, Consolas en
+// Calibri-Bold kwamen uit w:cs, Times New Roman uit w:eastAsia en uit 62
+// alineamarkeringen. Alleen zichtbare tekst telt.
+test('terugvallen in w:cs, w:eastAsia en de alineamarkering zijn geen gevraagd lettertype', () => {
+  const body = `<w:document ${W}><w:body>`
+    // De alineamarkering (het ¶-teken) krijgt van Word een eigen rPr — hier
+    // Times New Roman — terwijl de tekst van de alinea in Calibri staat.
+    + '<w:p><w:pPr><w:pStyle w:val="Plattetekst"/><w:rPr><w:rFonts w:ascii="Times New Roman"/></w:rPr></w:pPr>'
+    + '<w:r><w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:cs="Arial"/></w:rPr><w:t>Offerte heftruck</w:t></w:r></w:p>'
+    + '<w:p><w:r><w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:cs="Calibri-Bold"/></w:rPr><w:t>Onderhoudscontract</w:t></w:r></w:p>'
+    + '<w:p><w:r><w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:cs="Consolas"/></w:rPr><w:t>Keuring</w:t></w:r></w:p>'
+    + '</w:body></w:document>'
+  const styles = `<w:styles ${W}>`
+    + '<w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:eastAsia="Times New Roman" w:cs="Times New Roman"/></w:rPr></w:rPrDefault></w:docDefaults>'
+    + '<w:style w:type="paragraph" w:styleId="Plattetekst"><w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:cs="Times New Roman"/></w:rPr></w:style>'
+    + '</w:styles>'
+
+  const uit = voorbewerkDocx(maakDocx({ 'word/document.xml': body, 'word/styles.xml': styles }))
+  assert.deepEqual(uit.lettertypen, ['Calibri'], 'alleen het lettertype van de zichtbare tekst')
+
+  // En daarmee meldt een PDF waarin Calibri behouden is niets meer.
+  assert.deepEqual(vergelijkLettertypen(uit.lettertypen, ['Calibri']).vervangen, [], 'geen valse "vervangen"-melding')
+})
+
+// De eigenlijke functie van de controle (de eis van Mark: DaxPro / DaxPro-Light
+// / DaxPro-Medium moeten in de PDF behouden blijven) mag er niet door verdwijnen.
+test('een lettertype dat wél zichtbare tekst zet en niet in de PDF staat, wordt nog steeds gemeld', () => {
+  const body = `<w:document ${W}><w:body>`
+    + '<w:p><w:pPr><w:rPr><w:rFonts w:ascii="Times New Roman"/></w:rPr></w:pPr>'
+    + '<w:r><w:rPr><w:rFonts w:ascii="DaxPro-Light" w:hAnsi="DaxPro-Light"/></w:rPr><w:t>Inkooporder</w:t></w:r></w:p>'
+    + '<w:p><w:r><w:rPr><w:rFonts w:ascii="DaxPro-Medium" w:hAnsi="DaxPro-Medium"/></w:rPr><w:t>Totaalbedrag</w:t></w:r></w:p>'
+    + '</w:body></w:document>'
+  const uit = voorbewerkDocx(maakDocx({ 'word/document.xml': body }))
+  assert.deepEqual(uit.lettertypen, ['DaxPro-Light', 'DaxPro-Medium'])
+  // LibreOffice vond DaxPro-Medium niet en viel terug op DejaVu Sans:
+  assert.deepEqual(vergelijkLettertypen(uit.lettertypen, ['DaxPro-Light', 'DejaVuSans']).vervangen, ['DaxPro-Medium'])
 })
 
 test('weigert wat geen docx is', () => {

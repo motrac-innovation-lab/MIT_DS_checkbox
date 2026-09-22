@@ -134,6 +134,18 @@ export function normaliseerLettertype(naam) {
  * LibreOffice vervangen). Een gevraagde familie geldt als aanwezig als een
  * PDF-lettertype er gelijk aan is óf ermee begint ("DaxPro" → "DaxPro-Bold"):
  * de PDF noemt het snit-specifieke PostScript-naam, het document de familie.
+ *
+ * Die vergelijking is bewust éénrichtings. Andersom ("Calibri-Bold" gevraagd,
+ * "Calibri" in de PDF) telt als vervangen, en dat moet ook zo blijven: het is
+ * exact dezelfde vorm als "DaxPro-Light" gevraagd met alleen "DaxPro" in de
+ * PDF, en dát is een echte vervanging die gemeld hoort te worden
+ * (VEREISTE_LETTERTYPEN hierboven). Vraagt een document ooit letterlijk om een
+ * PostScript-naam als "Calibri-Bold" op zichtbare tekst, dan lost LibreOffice
+ * die op naar de familie en volgt hier een melding; in de gemeten Motrac-
+ * offertes komt die naam alleen uit w:cs voor en bereikt hij deze functie niet
+ * meer (zie docxVoorbewerking.js). Onderscheid tussen een snit-achtervoegsel
+ * (Bold/Italic) en een gewicht als eigen familie (Light/Medium) valt niet
+ * betrouwbaar uit de naam af te leiden — daarom hier geen heuristiek.
  */
 export function vergelijkLettertypen(gevraagd, inPdf) {
   const pdfGenormaliseerd = inPdf.map(normaliseerLettertype)

@@ -248,7 +248,16 @@ De keten, per upload, in `backend/lib/`:
    `<w:sym w:font="Wingdings 2" w:char="F0A3"/>` een `<w:t>☐</w:t>`; alle
    andere zip-onderdelen gaan byte-voor-byte mee (`fflate`). Verzamelt ook de
    gevraagde lettertypen (`w:rFonts` in runs, docDefaults, gebruikte stijlen
-   incl. `basedOn`-keten).
+   incl. `basedOn`-keten). **Alleen `w:ascii`/`w:hAnsi`, en alleen buiten
+   `<w:pPr>`** — dat is precies wat zichtbare tekst kan zetten. `w:cs`
+   (complex script) en `w:eastAsia` (CJK) zijn terugvallen die Word overal
+   neerzet en die nooit gerenderd worden, en de `<w:rPr>` in `<w:pPr>` is de
+   opmaak van de alineamarkering. Namen die daaruit kwamen belandden nooit in
+   de PDF en werden daarna als "vervangen" gemeld terwijl er niets vervangen
+   was (gemeten 2026-09-22 op een echte offerte: Arial, Consolas en
+   Calibri-Bold uit `w:cs`, Times New Roman uit `w:eastAsia` en uit 62
+   alineamarkeringen). Zie de regressietests in
+   `test/docxVoorbewerking.test.js`.
 2. **`docxNaarPdf.js`** (port van `DocxToPdfService.java`) — LibreOffice
    headless met per conversie een **eigen tijdelijk gebruikersprofiel**
    (`-env:UserInstallation`; anders weigert LO een tweede instantie en botsen
