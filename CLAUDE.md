@@ -359,9 +359,14 @@ cd frontend && npm run check:i18n
   machine, dan draait de hele render-keten (3 checkboxen incl. header, ankers
   in de tekstlaag, bestaand anker `\s2\` blijft); zo niet, dan controleert
   hij de 503 `CONVERSIE_ENGINE_ONBESCHIKBAAR` — bewust een tak en geen skip,
-  want CI eist `# skipped 0`. **De GitHub-runner heeft geen LibreOffice**, dus
-  CI test de render-keten nu niet; een `apt-get install libreoffice-writer`
-  in `tests.yml` (beschermd bestand) zou dat oplossen — voorleggen aan Mark.
+  want CI eist `# skipped 0`. **In CI draait sinds 2026-09-22 de echte
+  render-keten**: de backend-job installeert `libreoffice-writer` (de runner
+  brengt geen Writer-filter mee, en zonder dat filter laadt `soffice` geen
+  enkele `.docx`). Dat is een bewuste afwijking van de fleet-norm, met
+  toestemming van Mark — zie de toelichting in `tests.yml` zelf. Verdwijnt die
+  stap, dan valt de dekking stil terug op de 503-tak zonder dat een test
+  roodkleurt; controleer bij twijfel op `— volledige keten getest` in de
+  testuitvoer.
 - CI (`tests.yml`) draait de backend-suite mét Postgres-service en faalt als
   er tests overgeslagen zijn; de typecheck-job bouwt de siblings en draait
   `tsc` + `motrac-ui-check --streng`.
