@@ -18,7 +18,7 @@ wijziging:
 | Route | Wat er nodig is | Config |
 |---|---|---|
 | **A. LibreOffice op de fleet-server** (standaard) | Eenmalig door de serverbeheerder op elke `backend`-server: `apt-get install --no-install-recommends libreoffice-writer` (Writer + core, geen GUI). Fonts hoeven niet systeembreed: die komen uit `backend/fonts/`. | niets extra; evt. `LIBREOFFICE_COMMAND` als `soffice` niet op het PATH staat |
-| **B. Externe LibreOffice-dienst (Gotenberg)** | Een [Gotenberg](https://gotenberg.dev)-container op een machine die dat wél mag (bv. de bestaande Proxmox), met de DaxPro-fonts in de image (`COPY fonts/ /usr/local/share/fonts/`). Bereikbaar vanaf de fleet-servers. | `DOCX_PDF_ENGINE=gotenberg`, `GOTENBERG_URL=http://…:3000` |
+| **B. Externe LibreOffice-dienst (Gotenberg)** | Een [Gotenberg](https://gotenberg.dev)-container op een machine die dat wél mag (bv. de bestaande Proxmox), met de DaxPro-fonts in de image (`COPY fonts/ /usr/local/share/fonts/`). Bereikbaar vanaf de fleet-servers. Staat de dienst achter Basic Auth (bv. een `.htaccess` vóór de container), zet dan ook `GOTENBERG_BASIC_AUTH_USER`/`GOTENBERG_BASIC_AUTH_PASS` — anders geeft alleen het conversie-endpoint een 401, terwijl `/health` er soms wél doorheen komt. | `DOCX_PDF_ENGINE=gotenberg`, `GOTENBERG_URL=http://…:3000` |
 
 Zonder een van beide start de app gewoon op (geen storingsmodus), maar toont
 de statuskaart "omzetten niet mogelijk" en geeft `POST /api/conversies` een
