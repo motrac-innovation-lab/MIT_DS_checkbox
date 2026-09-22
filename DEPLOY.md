@@ -52,8 +52,11 @@ mode geeft één worker per core. Reken daar op bij het kiezen van de server.
 1. **Motrac Toegangsbeheer**: registreer de app in AppManager en noteer de
    slug en de API-key. Zet de slug op drie plekken: `APP_SLUG` in
    `backend/server.js`, `DEFAULT_SLUG` in `frontend/src/lib/motracAuth.ts`
-   en de repository-variabele `VITE_MOTRAC_AUTH_SLUG` (nu overal de
-   placeholder `mit-ds-checkbox`).
+   en de repository-variabele `VITE_MOTRAC_AUTH_SLUG`. Sinds 2026-09-22 is de
+   toegekende slug **`esigntool`** en staan die drie daar alle drie op.
+   Zet in AppManager ook de frontend-origin in de CORS-allowlist van de app,
+   anders blokkeert de browser de login met de melding dat er geen
+   `Access-Control-Allow-Origin`-header is — zie punt 5.
 2. **Dashboard**: maak twee applicaties aan — backend (`node_upload`) en
    frontend (`static_upload`) — en genereer per applicatie een persoonlijk
    deploy-token (**Deploy tokens → Genereer mijn token**; wordt één keer

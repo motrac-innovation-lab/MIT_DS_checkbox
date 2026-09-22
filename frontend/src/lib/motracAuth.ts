@@ -9,9 +9,10 @@ import i18n from '../i18n'
 // en de andere apps). Lokaal tegen een eigen Motrac-beheer testen: zet
 // VITE_MOTRAC_AUTH_URL=http://localhost:8787 in frontend/.env.
 const DEFAULT_ORIGIN = 'https://9x24841z85.dev.motrac.app'
-// PLACEHOLDER tot de app in Motrac-beheer geregistreerd is. Moet gelijk zijn
-// aan APP_SLUG in backend/server.js en aan VITE_MOTRAC_AUTH_SLUG in CI.
-const DEFAULT_SLUG = 'mit-ds-checkbox'
+// De slug van deze app in Motrac-beheer (toegekend 2026-09-22). Terugval voor
+// het geval VITE_MOTRAC_AUTH_SLUG ontbreekt; moet gelijk zijn aan APP_SLUG in
+// backend/server.js en aan VITE_MOTRAC_AUTH_SLUG in CI.
+const DEFAULT_SLUG = 'esigntool'
 
 const ORIGIN = import.meta.env.VITE_MOTRAC_AUTH_URL || DEFAULT_ORIGIN
 const SLUG = import.meta.env.VITE_MOTRAC_AUTH_SLUG || DEFAULT_SLUG

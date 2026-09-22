@@ -31,10 +31,13 @@ import { ConversieFout, MAX_DOCX_BYTES, converteerOfferte } from './lib/conversi
 import { ENGINE as DOCX_PDF_ENGINE, detecteerLibreOffice, engineStatus } from './lib/docxNaarPdf.js'
 import { VEREISTE_LETTERTYPEN, beschikbareLettertypen, fontMappen, ontbrekendeVereisteLettertypen } from './lib/lettertypen.js'
 
-// PLACEHOLDER tot de app in Motrac Toegangsbeheer geregistreerd is. Moet
-// gelijk zijn aan DEFAULT_SLUG in frontend/src/lib/motracAuth.ts en aan de
-// repository-variabele VITE_MOTRAC_AUTH_SLUG.
-const APP_SLUG = 'mit-ds-checkbox'
+// De slug die deze app in Motrac Toegangsbeheer heeft (toegekend 2026-09-22).
+// Moet gelijk zijn aan DEFAULT_SLUG in frontend/src/lib/motracAuth.ts en aan
+// de repository-variabele VITE_MOTRAC_AUTH_SLUG — die drie samen bepalen naar
+// welke app de /verify-call gaat. Staan ze niet gelijk, dan logt de gebruiker
+// wél in maar geeft elke /api/*-route een 401: het token is dan uitgegeven
+// voor de ene app en hier gecontroleerd tegen de andere.
+const APP_SLUG = 'esigntool'
 const VERIFY_CACHE_TTL_MS = 60_000
 
 // GEEN top-level `await` in dit bestand — een harde eis van het deploy-
@@ -621,7 +624,7 @@ const host = '0.0.0.0'
   : dbReady.then((instance) => runMigrations(instance.sql)))
   .then(() => {
     startupState.fase = 'klaar'
-    app.listen(port, host, () => console.log(`mit-ds-checkbox backend luistert op :${port}`))
+    app.listen(port, host, () => console.log(`${APP_SLUG} backend luistert op :${port}`))
   })
   .catch((e) => {
     // Opstarten mislukt: tóch de poort openen, zodat /api/_health de oorzaak
