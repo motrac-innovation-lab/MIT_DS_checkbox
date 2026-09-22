@@ -118,7 +118,7 @@
       "onbekend": "unknown",
       "fontsOntbrekenTitel": "Not all quote fonts are on the server",
       "fontsOntbreken": "Missing: {{fonts}}. LibreOffice will substitute another font and the PDF layout may shift. Put the font files in backend/fonts/ (see the README there).",
-      "fontsExtern": "With this engine ({{engine}}) the fonts come from the external LibreOffice service; this server cannot tell in advance which fonts are installed there. Put DaxPro, DaxPro-Light and DaxPro-Medium in that service's image (see DEPLOY.md, route B). After each conversion the result reports which fonts were substituted."
+      "fontsExtern": "With this engine ({{engine}}) the fonts come from the external LibreOffice service; this server cannot tell in advance which fonts are installed there. Put DaxPro, DaxPro-Bold, DaxPro-Light and DaxPro-Medium in that service's image (see DEPLOY.md, route B). After each conversion the result reports which fonts were substituted."
     },
     "upload": {
       "titel": "Word document",

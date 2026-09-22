@@ -223,7 +223,7 @@ echte grens, een `isAdmin`-check in de UI alleen cosmetiek.
 | `GET /api/_health/beheer` | geen | Doet de `/verify`-call naar Motrac-beheer met een opzettelijk ongeldig token, zodat "koppeling kapot" te onderscheiden is van "token verlopen". |
 | `GET /api/data` | bearer | Bootstrap: `config` (alleen `CONFIG_WHITELIST`, nu leeg). |
 | `POST /api/feedback` | bearer | Doorgifte van de FeedbackWidget naar Motrac-beheer; eigen 12mb-body-limiet vanwege screenshots. |
-| `GET /api/conversies/status` | bearer | Render-engine (LibreOffice gevonden + versie, of Gotenberg bereikbaar) en de aanwezige lettertypen; welke van DaxPro / DaxPro-Light / DaxPro-Medium ontbreken. `lettertypen.viaFontmappen` is `false` bij Gotenberg: de fontmappen van deze server gaan dan niet mee in de render en de kaart toont de families als "onbekend" in plaats van "ontbreekt". Voedt de statuskaart. |
+| `GET /api/conversies/status` | bearer | Render-engine (LibreOffice gevonden + versie, of Gotenberg bereikbaar) en de aanwezige lettertypen; welke van DaxPro / DaxPro-Bold / DaxPro-Light / DaxPro-Medium ontbreken. `lettertypen.viaFontmappen` is `false` bij Gotenberg: de fontmappen van deze server gaan dan niet mee in de render en de kaart toont de families als "onbekend" in plaats van "ontbreekt". Voedt de statuskaart. |
 | `POST /api/conversies` | bearer | De conversie. Body `{ bestandsnaam, docxBase64 }` (eigen 35mb-parser vóór de generieke), antwoord `{ bestandsnaam, aantalCheckboxen, pdfBase64, lettertypen: { gevraagd, inPdf, vervangen }, engine, duurMs, symbolenVervangen, ankersGeschat }`. Fouten: `VALIDATION` 400/413, `CONVERSIE_ENGINE_ONBESCHIKBAAR` 503, `CONVERSIE_MISLUKT` 422, `CONVERSIE_TIMEOUT` 504, `CONVERSIE_DRUK` 503. |
 | `GET /api/conversies` | `requireAdmin` | Het conversies-logboek (migratie 0003), server-side gepagineerd; metadata, nooit documentinhoud. |
 | `GET /api/audit-log` | `requireAdmin` | Server-side gepagineerd logboek (`logAction`/`logActionZachtjes`). |
@@ -248,13 +248,23 @@ De keten, per upload, in `backend/lib/`:
    `<w:sym w:font="Wingdings 2" w:char="F0A3"/>` een `<w:t>☐</w:t>`; alle
    andere zip-onderdelen gaan byte-voor-byte mee (`fflate`). Verzamelt ook de
    gevraagde lettertypen (`w:rFonts` in runs, docDefaults, gebruikte stijlen
-   incl. `basedOn`-keten).
+   incl. `basedOn`-keten). **Alleen `w:ascii`/`w:hAnsi`, en alleen buiten
+   `<w:pPr>`** — dat is precies wat zichtbare tekst kan zetten. `w:cs`
+   (complex script) en `w:eastAsia` (CJK) zijn terugvallen die Word overal
+   neerzet en die nooit gerenderd worden, en de `<w:rPr>` in `<w:pPr>` is de
+   opmaak van de alineamarkering. Namen die daaruit kwamen belandden nooit in
+   de PDF en werden daarna als "vervangen" gemeld terwijl er niets vervangen
+   was (gemeten 2026-09-22 op een echte offerte: Arial, Consolas en
+   Calibri-Bold uit `w:cs`, Times New Roman uit `w:eastAsia` en uit 62
+   alineamarkeringen). Zie de regressietests in
+   `test/docxVoorbewerking.test.js`.
 2. **`docxNaarPdf.js`** (port van `DocxToPdfService.java`) — LibreOffice
    headless met per conversie een **eigen tijdelijk gebruikersprofiel**
    (`-env:UserInstallation`; anders weigert LO een tweede instantie en botsen
    de cluster-workers) waarin `user/fonts/` gevuld wordt met de bestanden uit
    `backend/fonts/` (+ `/uploads/fonts`, of `FONTS_DIR`). **Zo blijven DaxPro,
-   DaxPro-Light en DaxPro-Medium in de PDF zonder systeeminstallatie** —
+   DaxPro-Bold, DaxPro-Light en DaxPro-Medium in de PDF zonder
+   systeeminstallatie** —
    gecontroleerd op 2026-09-21: LO leest die profielmap ook als fontconfig
    het lettertype niet kent. Tweede engine: `DOCX_PDF_ENGINE=gotenberg` +
    `GOTENBERG_URL` (externe LibreOffice-dienst) voor het geval LO niet op de

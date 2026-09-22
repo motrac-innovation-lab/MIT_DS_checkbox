@@ -16,7 +16,8 @@
 // byte-voor-byte mee, zodat het document geldig blijft. Daarnaast worden de
 // in het document gebruikte lettertypen verzameld, zodat na het renderen te
 // controleren is of LibreOffice ze ook echt gebruikt heeft (de eis van Mark:
-// DaxPro / DaxPro-Light / DaxPro-Medium moeten in de PDF behouden blijven).
+// DaxPro / DaxPro-Bold / DaxPro-Light / DaxPro-Medium moeten in de PDF
+// behouden blijven).
 import { unzipSync, zipSync, strFromU8, strToU8 } from 'fflate'
 
 /** Zip-onderdelen die getransformeerd worden; de rest passeert onaangeroerd. */
@@ -62,16 +63,43 @@ export function transformeerDocumentXml(xml) {
 }
 
 /**
+ * Haalt de `<w:pPr>`-blokken weg. De `<w:rPr>` daarbinnen is de opmaak van de
+ * alineamarkering (het ¶-teken zelf), niet van de tekst in de alinea — Word
+ * zet daar standaard "Times New Roman" neer. Zie de reden bij
+ * lettertypenInOnderdeel(). Een `<w:pPr>` in een `<w:pPrChange>` (wijzigingen
+ * bijhouden) maakt de niet-gulzige match korter; wat er dan blijft staan
+ * bevat geen `<w:rFonts>` meer, dus dat is onschadelijk.
+ */
+function zonderAlineaEigenschappen(xml) {
+  return xml.replace(/<w:pPr>[\s\S]*?<\/w:pPr>/g, '')
+}
+
+/**
  * Lettertypen die een onderdeel expliciet aanvraagt (`w:rFonts`), plus de
  * stijl-id's die het gebruikt (`w:pStyle`/`w:rStyle`) — die worden in
  * styles.xml nagelopen door verzamelLettertypen().
+ *
+ * Alleen `w:ascii` en `w:hAnsi` tellen mee, en alleen buiten `<w:pPr>`. Dat is
+ * precies wat op het scherm in dat lettertype kán komen te staan; de rest is
+ * opmaak die nooit gerenderd wordt en daarmee ook nooit in de PDF belandt —
+ * waarna vergelijkLettertypen() hem als "vervangen" zou melden terwijl er
+ * niets vervangen is. Gemeten op een echte Motrac-offerte (2026-09-22):
+ *   - `w:cs` (complex script, Arabisch/Hebreeuws) leverde Arial, Consolas,
+ *     Calibri en Calibri-Bold — geen letter ervan staat in het document;
+ *   - `w:eastAsia` (CJK) en de alineamarkering leverden Times New Roman:
+ *     62 van de 62 `w:ascii="Times New Roman"` stonden in een `<w:pPr>`.
+ * Die vier waren exact de valse meldingen. Word schrijft deze terugvallen in
+ * vrijwel elk document, ook als er geen Arabisch, Japans of Times New Roman in
+ * voorkomt.
  */
 function lettertypenInOnderdeel(xml) {
   const fonts = new Set()
   const stijlen = new Set()
-  for (const m of xml.matchAll(/<w:rFonts\b([^>]*)\/?>/g)) {
-    for (const attr of m[1].matchAll(/\bw:(?:ascii|hAnsi|cs|eastAsia)="([^"]+)"/g)) fonts.add(attr[1].trim())
+  for (const m of zonderAlineaEigenschappen(xml).matchAll(/<w:rFonts\b([^>]*)\/?>/g)) {
+    for (const attr of m[1].matchAll(/\bw:(?:ascii|hAnsi)="([^"]+)"/g)) fonts.add(attr[1].trim())
   }
+  // Stijlverwijzingen komen juist wél uit `<w:pPr>` (daar staat `w:pStyle`),
+  // dus die lezen we over de onbewerkte XML.
   for (const m of xml.matchAll(/<w:(?:pStyle|rStyle)\s+w:val="([^"]+)"/g)) stijlen.add(m[1])
   return { fonts, stijlen }
 }

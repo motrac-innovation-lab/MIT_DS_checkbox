@@ -11,7 +11,7 @@ naar een PDF met verborgen DocuSign-ankers. Per checkbox (☐ of het Wingdings
 2-vakje) komt `\cb_001\`, `\cb_002\`, … als witte 1pt-tekst in de tekstlaag,
 direct links van het zichtbare vakje; Salesforce Apex maakt daar de
 DocuSign-`CheckboxTab`s van. De lettertypen van het brondocument (DaxPro,
-DaxPro-Light, DaxPro-Medium) blijven in de PDF behouden zodra de fontbestanden
+DaxPro-Bold, DaxPro-Light, DaxPro-Medium) blijven in de PDF behouden zodra de fontbestanden
 in `backend/fonts/` staan. Geport uit `markkuijpers31-lab/esign_motrac`
 (Java/Spring, PoC) op 2026-09-21 — dat repo is daarmee vervangen.
 

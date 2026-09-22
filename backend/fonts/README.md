@@ -19,7 +19,7 @@ systeembreed: elke conversie krijgt een eigen, tijdelijk LibreOffice-profiel en
 | Bestand | Waarom |
 |---|---|
 | `DejaVuSans.ttf` (meegeleverd, licentie in `DejaVuSans-LICENSE.txt`) | Levert het zichtbare vakje ☐ (U+2610). DaxPro en OpenSymbol hebben dat teken niet; zonder een lettertype dat het wél heeft rendert LibreOffice een leeg blokje en vindt de PDF-stap geen enkele checkbox. |
-| **`DaxPro*.ttf` / `*.otf` — nog aan te leveren door Mark** | De huisstijl-lettertypen van de offertes: DaxPro, DaxPro-Light en DaxPro-Medium. Zonder deze bestanden vervangt LibreOffice ze (meestal door DejaVu Sans) en verschuift de layout. |
+| **`DaxPro*.ttf` / `*.otf` — nog aan te leveren door Mark** | De huisstijl-lettertypen van de offertes: DaxPro, DaxPro-Bold, DaxPro-Light en DaxPro-Medium. Zonder deze bestanden vervangt LibreOffice ze (meestal door DejaVu Sans) en verschuift de layout. |
 
 De statuskaart in de app (en `GET /api/conversies/status`) toont welke van de
 drie DaxPro-families gevonden zijn, op basis van de familienaam ín het

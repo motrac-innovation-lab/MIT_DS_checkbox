@@ -1,5 +1,6 @@
 // Lettertypen voor de DOCX→PDF-render — de eis van Mark (2026-09-21): een
-// geüploade offerte in DaxPro / DaxPro-Light / DaxPro-Medium moet in de PDF
+// geüploade offerte in DaxPro / DaxPro-Bold / DaxPro-Light / DaxPro-Medium
+// moet in de PDF
 // hetzelfde lettertype houden.
 //
 // LibreOffice kan een lettertype alleen gebruiken als het bestand ervoor
@@ -21,8 +22,14 @@ import { fileURLToPath } from 'node:url'
 
 const backendDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 
-/** De families die een Motrac-offerte gebruikt; de statuspagina meldt welke ontbreken. */
-export const VEREISTE_LETTERTYPEN = ['DaxPro', 'DaxPro-Light', 'DaxPro-Medium']
+/**
+ * De families die een Motrac-offerte gebruikt; de statuspagina meldt welke
+ * ontbreken. DaxPro-Bold staat er sinds 2026-09-22 bij: op de gemeten offerte
+ * zet hij 52 runs zichtbare tekst, dus zonder dat bestand valt LibreOffice
+ * terug en verschuift de layout — de statuskaart hoort dat vooraf te melden en
+ * niet pas als resultaat van een conversie.
+ */
+export const VEREISTE_LETTERTYPEN = ['DaxPro', 'DaxPro-Bold', 'DaxPro-Light', 'DaxPro-Medium']
 
 const FONT_EXTENSIES = /\.(ttf|otf|ttc)$/i
 
@@ -134,6 +141,18 @@ export function normaliseerLettertype(naam) {
  * LibreOffice vervangen). Een gevraagde familie geldt als aanwezig als een
  * PDF-lettertype er gelijk aan is óf ermee begint ("DaxPro" → "DaxPro-Bold"):
  * de PDF noemt het snit-specifieke PostScript-naam, het document de familie.
+ *
+ * Die vergelijking is bewust éénrichtings. Andersom ("Calibri-Bold" gevraagd,
+ * "Calibri" in de PDF) telt als vervangen, en dat moet ook zo blijven: het is
+ * exact dezelfde vorm als "DaxPro-Light" gevraagd met alleen "DaxPro" in de
+ * PDF, en dát is een echte vervanging die gemeld hoort te worden
+ * (VEREISTE_LETTERTYPEN hierboven). Vraagt een document ooit letterlijk om een
+ * PostScript-naam als "Calibri-Bold" op zichtbare tekst, dan lost LibreOffice
+ * die op naar de familie en volgt hier een melding; in de gemeten Motrac-
+ * offertes komt die naam alleen uit w:cs voor en bereikt hij deze functie niet
+ * meer (zie docxVoorbewerking.js). Onderscheid tussen een snit-achtervoegsel
+ * (Bold/Italic) en een gewicht als eigen familie (Light/Medium) valt niet
+ * betrouwbaar uit de naam af te leiden — daarom hier geen heuristiek.
  */
 export function vergelijkLettertypen(gevraagd, inPdf) {
   const pdfGenormaliseerd = inPdf.map(normaliseerLettertype)

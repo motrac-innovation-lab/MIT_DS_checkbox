@@ -37,7 +37,9 @@ function maakOfferteDocx() {
       + '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/>'
       + '</Relationships>',
     'word/styles.xml': `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:styles ${W}>`
-      + '<w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="DejaVu Sans" w:hAnsi="DejaVu Sans" w:cs="DejaVu Sans"/><w:sz w:val="22"/></w:rPr></w:rPrDefault></w:docDefaults>'
+      // De terugvallen die Word overal neerzet en die nooit gerenderd worden:
+      // w:eastAsia (CJK) en w:cs (complex script). Ze horen niet in `gevraagd`.
+      + '<w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="DejaVu Sans" w:hAnsi="DejaVu Sans" w:eastAsia="Times New Roman" w:cs="Times New Roman"/><w:sz w:val="22"/></w:rPr></w:rPrDefault></w:docDefaults>'
       + '</w:styles>',
     'word/header1.xml': `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:hdr ${W}><w:p>${run('☐ Kopregel')}</w:p></w:hdr>`,
     'word/document.xml': `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" ${W}><w:body>`
@@ -45,6 +47,11 @@ function maakOfferteDocx() {
       + `<w:p><w:r>${SYM}</w:r>${run(' Onderhoudscontract')}</w:p>`
       + `<w:p>${run('☐ Keuring')}</w:p>`
       + `<w:p>${run('Service inclusief: √ Smering')}</w:p>`
+      // Een alinea met een eigen lettertype op de alineamarkering (Consolas) en
+      // een complex-script-terugval op de run (Arial): beide zonder zichtbare
+      // tekst in dat lettertype, dus geen van beide is "gevraagd".
+      + '<w:p><w:pPr><w:rPr><w:rFonts w:ascii="Consolas"/></w:rPr></w:pPr>'
+      + '<w:r><w:rPr><w:rFonts w:ascii="DejaVu Sans" w:hAnsi="DejaVu Sans" w:cs="Arial"/></w:rPr><w:t xml:space="preserve">Levertijd in overleg</w:t></w:r></w:p>'
       + `<w:p>${run('Handtekening: \\s2\\')}</w:p>`
       + '<w:sectPr><w:headerReference w:type="default" r:id="rId2"/><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1417" w:right="1417" w:bottom="1417" w:left="1417" w:header="708" w:footer="708" w:gutter="0"/></w:sectPr>'
       + '</w:body></w:document>',
@@ -64,7 +71,7 @@ describe('offerte-conversie', { skip: slaOverZonderDb }, () => {
     assert.equal(res.status, 200)
     assert.equal(res.json.engine, 'soffice')
     assert.equal(typeof res.json.beschikbaar, 'boolean')
-    assert.deepEqual(res.json.lettertypen.vereist, ['DaxPro', 'DaxPro-Light', 'DaxPro-Medium'])
+    assert.deepEqual(res.json.lettertypen.vereist, ['DaxPro', 'DaxPro-Bold', 'DaxPro-Light', 'DaxPro-Medium'])
     assert.ok(res.json.lettertypen.bestanden.some((b) => b.families.includes('DejaVu Sans')))
     assert.equal(res.json.lettertypen.viaFontmappen, true, 'bij soffice gaan de fontmappen van de server mee in de render')
   })
@@ -82,7 +89,7 @@ describe('offerte-conversie', { skip: slaOverZonderDb }, () => {
       assert.equal(status.json.beschikbaar, false, 'poort 9 (discard) is geen Gotenberg')
       assert.equal(status.json.lettertypen.viaFontmappen, false)
       // De meting over deze server blijft wél eerlijk: DaxPro staat hier niet.
-      assert.deepEqual(status.json.lettertypen.ontbreekt, ['DaxPro', 'DaxPro-Light', 'DaxPro-Medium'])
+      assert.deepEqual(status.json.lettertypen.ontbreekt, ['DaxPro', 'DaxPro-Bold', 'DaxPro-Light', 'DaxPro-Medium'])
 
       const health = await extern.api('/api/_health')
       assert.equal(health.json.conversie.engine, 'gotenberg')
@@ -147,6 +154,11 @@ describe('offerte-conversie', { skip: slaOverZonderDb }, () => {
     assert.equal(res.json.engine, 'soffice')
     assert.ok(res.json.lettertypen.gevraagd.includes('DejaVu Sans'))
     assert.ok(!res.json.lettertypen.vervangen.includes('DejaVu Sans'), 'DejaVu Sans komt uit backend/fonts/ en mag niet vervangen zijn')
+    // Over de echte keten: Times New Roman (w:eastAsia/w:cs), Arial (w:cs) en
+    // Consolas (alineamarkering) zetten geen zichtbare tekst, komen dus niet in
+    // de PDF en mogen geen valse "Lettertype vervangen"-melding geven.
+    assert.deepEqual(res.json.lettertypen.gevraagd, ['DejaVu Sans'], 'alleen het lettertype van de zichtbare tekst')
+    assert.deepEqual(res.json.lettertypen.vervangen, [], 'geen valse "vervangen"-melding')
 
     const pdf = new Uint8Array(Buffer.from(res.json.pdfBase64, 'base64'))
     assert.equal(Buffer.from(pdf.subarray(0, 5)).toString(), '%PDF-')
