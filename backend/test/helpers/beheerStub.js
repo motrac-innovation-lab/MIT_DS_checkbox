@@ -1,7 +1,7 @@
 // test/helpers/beheerStub.js — een nep-Motrac-beheer voor de routetests.
 //
 // De backend verifieert élk /api/*-verzoek server-side bij Motrac-beheer
-// (POST /api/v1/mit-ds-checkbox/verify). Zonder stub is er dus geen enkele
+// (POST /api/v1/<slug>/verify). Zonder stub is er dus geen enkele
 // route te testen. Deze stub praat exact het antwoord terug dat
 // `authenticate()` verwacht: { active, user: { ..., rol } }.
 import http from 'node:http'

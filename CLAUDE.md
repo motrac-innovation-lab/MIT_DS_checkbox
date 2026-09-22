@@ -208,9 +208,10 @@ Motrac-beheer met `@motrac/auth-client`; de backend verifieert élk
 `/api/*`-request server-side (`POST /api/v1/<slug>/verify` met `X-Api-Key`,
 60s per-proces gecachet). `APP_SLUG` in `server.js`, `DEFAULT_SLUG` in
 `frontend/src/lib/motracAuth.ts` en de CI-variabele `VITE_MOTRAC_AUTH_SLUG`
-zijn nu alle drie de **placeholder `mit-ds-checkbox`** — de app is nog niet in
-Toegangsbeheer geregistreerd. Zodra dat gebeurd is: alle drie tegelijk op de
-toegekende slug zetten. Rollen: de twee standaard `app_rollen` van
+staan sinds 2026-09-22 alle drie op de toegekende slug **`esigntool`**. Die
+drie horen altijd gelijk te zijn: lopen ze uiteen, dan logt de gebruiker wél
+in maar geeft elke `/api/*`-route een 401, omdat het token voor de ene app is
+uitgegeven en hier tegen de andere wordt gecontroleerd. Rollen: de twee standaard `app_rollen` van
 Motrac-beheer (`gebruiker`/`admin`); `requireAdmin` in de backend is de
 echte grens, een `isAdmin`-check in de UI alleen cosmetiek.
 
