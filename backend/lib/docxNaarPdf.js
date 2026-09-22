@@ -30,6 +30,20 @@ import { pathToFileURL } from 'node:url'
 
 export const ENGINE = (process.env.DOCX_PDF_ENGINE || 'soffice').trim().toLowerCase()
 const GOTENBERG_URL = (process.env.GOTENBERG_URL || '').replace(/\/$/, '')
+const GOTENBERG_AUTH_USER = process.env.GOTENBERG_BASIC_AUTH_USER || ''
+const GOTENBERG_AUTH_PASS = process.env.GOTENBERG_BASIC_AUTH_PASS || ''
+
+/**
+ * Headers voor requests naar Gotenberg. Sommige Gotenberg-installaties staan
+ * achter Basic Auth (bv. via een .htaccess vóór de dienst) — zonder
+ * `Authorization`-header geeft zo'n installatie een 401 op precies het
+ * conversie-endpoint, terwijl `/health` er soms wél doorheen komt.
+ */
+function gotenbergHeaders() {
+  if (!GOTENBERG_AUTH_USER || !GOTENBERG_AUTH_PASS) return {}
+  const token = Buffer.from(`${GOTENBERG_AUTH_USER}:${GOTENBERG_AUTH_PASS}`).toString('base64')
+  return { Authorization: `Basic ${token}` }
+}
 
 export class RenderFout extends Error {
   /** @param {'ONBESCHIKBAAR'|'MISLUKT'|'TIMEOUT'} soort */
@@ -149,7 +163,7 @@ async function metGotenberg({ docxPad, timeoutMs }) {
   const ac = new AbortController()
   const timer = setTimeout(() => ac.abort(), timeoutMs)
   try {
-    const res = await fetch(`${GOTENBERG_URL}/forms/libreoffice/convert`, { method: 'POST', body: formulier, signal: ac.signal })
+    const res = await fetch(`${GOTENBERG_URL}/forms/libreoffice/convert`, { method: 'POST', body: formulier, headers: gotenbergHeaders(), signal: ac.signal })
     if (!res.ok) {
       throw new RenderFout('MISLUKT', 'Het document kon niet naar PDF worden omgezet door de LibreOffice-dienst.', `gotenberg status=${res.status} ${(await res.text()).slice(0, 2000)}`)
     }
@@ -185,7 +199,7 @@ export async function engineStatus() {
       try {
         const ac = new AbortController()
         const timer = setTimeout(() => ac.abort(), 5000)
-        const res = await fetch(`${GOTENBERG_URL}/health`, { signal: ac.signal }).finally(() => clearTimeout(timer))
+        const res = await fetch(`${GOTENBERG_URL}/health`, { headers: gotenbergHeaders(), signal: ac.signal }).finally(() => clearTimeout(timer))
         bereikbaar = res.ok
       } catch {
         bereikbaar = false
