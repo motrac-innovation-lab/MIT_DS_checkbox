@@ -279,6 +279,18 @@ De keten, per upload, in `backend/lib/`:
    `mc:AlternateContent` (anders valt LO terug op de VML in `mc:Fallback`).
    Het aantal komt terug als `vormenVerwijderd`. Tests in
    `test/verborgenVormen.test.js`.
+
+   Daarna zet **`tekstvakStijl.js`** op elke alinea zonder `<w:pStyle>` binnen
+   een `<w:txbxContent>` expliciet de standaard-alineastijl (in de sjablonen
+   `Standaard` = DaxPro-Light). Word doet dat impliciet; LibreOffice geeft zo'n
+   alinea de stijl "Frame contents", die van de docDefaults erft — en daar
+   staat het thema-lettertype `minorHAnsi` = **Calibri**. Gemeten 2026-09-24
+   (FODT-export): Calibri-tekst van 1.399 naar 715 tekens. De rest is ÉCHT
+   Calibri, ook in Word: alinea's in stijl `Geenafstand` ("Geen afstand"),
+   die niet op `Standaard` is gebaseerd en zelf geen lettertype zet (o.a.
+   "MyLinde" en "Nacalculatie" op de leveringspagina's). Dat hoort in het
+   sjabloon opgelost te worden, niet hier: de converter volgt Word. Tests in
+   `test/tekstvakStijl.test.js`.
 2. **`docxNaarPdf.js`** (port van `DocxToPdfService.java`) — LibreOffice
    headless met per conversie een **eigen tijdelijk gebruikersprofiel**
    (`-env:UserInstallation`; anders weigert LO een tweede instantie en botsen
@@ -468,7 +480,7 @@ cd frontend && npm run check:i18n
 - `backend/test/migraties.test.js` — idempotentie (drie keer draaien) en een
   gesloten nummerreeks.
 - `backend/test/docxVoorbewerking.test.js`, `verborgenVormen.test.js`,
-  `pdfCheckboxAnkers.test.js`, `lettertypen.test.js` — ports van de Java-tests uit `esign_motrac` plus de
+  `tekstvakStijl.test.js`, `pdfCheckboxAnkers.test.js`, `lettertypen.test.js` — ports van de Java-tests uit `esign_motrac` plus de
   lettertype-laag; pure logica, geen DB of LibreOffice (de test-PDF wordt met
   pdf-lib + DejaVu Sans gebouwd).
 - `backend/test/conversie.test.js` — de conversie over de echte server:

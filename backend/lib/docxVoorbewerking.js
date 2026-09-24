@@ -20,6 +20,7 @@
 // behouden blijven).
 import { unzipSync, zipSync, strFromU8, strToU8 } from 'fflate'
 import { leesRelaties, verwijderBedekteVormen } from './verborgenVormen.js'
+import { standaardAlineastijl, standaardstijlInTekstvakken } from './tekstvakStijl.js'
 
 /** Zip-onderdelen die getransformeerd worden; de rest passeert onaangeroerd. */
 const WORD_PART = /^word\/(?:document|header\d*|footer\d*)\.xml$/
@@ -142,7 +143,9 @@ function relsPad(naam) {
 
 /**
  * Voert de voorbewerking uit op de ruwe DOCX-bytes.
- * @returns {{ docx: Uint8Array, vervangingen: number, vormenVerwijderd: number, lettertypen: string[] }}
+ * @returns {{ docx: Uint8Array, vervangingen: number, vormenVerwijderd: number, tekstvakAlineas: number, lettertypen: string[] }}
+ *   `tekstvakAlineas`: alinea's in een tekstvak die de standaardstijl expliciet
+ *   kregen, zodat LibreOffice er niet de docDefaults op zet (zie tekstvakStijl.js).
  *   `vormenVerwijderd`: vormen die in Word volledig onder een dekkende vorm
  *   liggen en daarom uit het document zijn gehaald (zie verborgenVormen.js).
  *   `lettertypen`: de door het document gevraagde lettertypen, gesorteerd en
@@ -162,6 +165,8 @@ export function voorbewerkDocx(docxBytes) {
   const uitvoer = {}
   let vervangingen = 0
   let vormenVerwijderd = 0
+  let tekstvakAlineas = 0
+  const standaardStijl = onderdelen['word/styles.xml'] ? standaardAlineastijl(strFromU8(onderdelen['word/styles.xml'])) : null
   const gevraagd = new Set()
   const stijlen = new Set()
 
@@ -172,7 +177,9 @@ export function voorbewerkDocx(docxBytes) {
       const rels = onderdelen[relsPad(naam)]
       const zichtbaar = verwijderBedekteVormen(strFromU8(bytes), leesRelaties(rels ? strFromU8(rels) : ''))
       vormenVerwijderd += zichtbaar.verwijderd
-      const resultaat = transformeerDocumentXml(zichtbaar.xml)
+      const gestyled = standaardstijlInTekstvakken(zichtbaar.xml, standaardStijl)
+      tekstvakAlineas += gestyled.aangepast
+      const resultaat = transformeerDocumentXml(gestyled.xml)
       vervangingen += resultaat.vervangingen
       uitvoer[naam] = strToU8(resultaat.xml)
       const gebruikt = lettertypenInOnderdeel(resultaat.xml)
@@ -189,7 +196,7 @@ export function voorbewerkDocx(docxBytes) {
 
   const lettertypen = [...gevraagd].filter((f) => f && !SYMBOOL_LETTERTYPEN.test(f)).sort((a, b) => a.localeCompare(b, 'nl'))
 
-  return { docx: zipSync(uitvoer), vervangingen, vormenVerwijderd, lettertypen }
+  return { docx: zipSync(uitvoer), vervangingen, vormenVerwijderd, tekstvakAlineas, lettertypen }
 }
 
 export class DocxOngeldig extends Error {

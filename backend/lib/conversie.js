@@ -111,7 +111,7 @@ export async function converteerOfferte({ bestandsnaam, docx }) {
         if (e instanceof DocxOngeldig) throw new ConversieFout('VALIDATION', e.message, { status: 400 })
         throw e
       }
-      console.log(`DOCX voorbewerkt: ${voorbewerkt.vervangingen} symbool-run(s) vervangen door ☐, ${voorbewerkt.vormenVerwijderd} bedekte vorm(en) verwijderd`)
+      console.log(`DOCX voorbewerkt: ${voorbewerkt.vervangingen} symbool-run(s) vervangen door ☐, ${voorbewerkt.vormenVerwijderd} bedekte vorm(en) verwijderd, ${voorbewerkt.tekstvakAlineas} tekstvak-alinea('s) op de standaardstijl gezet`)
 
       const docxPad = path.join(werkmap, 'voorbewerkt.docx')
       await writeFile(docxPad, voorbewerkt.docx)
