@@ -252,6 +252,11 @@ export function ConversiePage() {
             {resultaat.ankersGeschat > 0 && (
               <Alert tone="warn">{t('conversie.resultaat.geschat', { aantal: resultaat.ankersGeschat })}</Alert>
             )}
+            {(resultaat.ontbrekendeAfbeeldingen?.length ?? 0) > 0 && (
+              <Alert tone="warn" titel={t('conversie.resultaat.afbeeldingenTitel')}>
+                {t('conversie.resultaat.afbeeldingenTekst', { namen: resultaat.ontbrekendeAfbeeldingen?.join(', ') })}
+              </Alert>
+            )}
             <div>
               <p className="hint" style={{ marginBottom: 6 }}>{t('conversie.resultaat.lettertypen')}</p>
               <div className="offerte-lettertypen">

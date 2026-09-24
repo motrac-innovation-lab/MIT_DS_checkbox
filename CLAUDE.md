@@ -230,7 +230,7 @@ echte grens, een `isAdmin`-check in de UI alleen cosmetiek.
 | `GET /api/data` | bearer | Bootstrap: `config` (alleen `CONFIG_WHITELIST`, nu leeg). |
 | `POST /api/feedback` | bearer | Doorgifte van de FeedbackWidget naar Motrac-beheer; eigen 12mb-body-limiet vanwege screenshots. |
 | `GET /api/conversies/status` | bearer | Render-engine (LibreOffice gevonden + versie, of Gotenberg bereikbaar) en de aanwezige lettertypen; welke van DaxPro / DaxPro-Bold / DaxPro-Light / DaxPro-Medium ontbreken. `lettertypen.viaFontmappen` is `false` bij Gotenberg: de fontmappen van deze server gaan dan niet mee in de render en de kaart toont de families als "onbekend" in plaats van "ontbreekt". Voedt de statuskaart. |
-| `POST /api/conversies` | bearer | De conversie. Body `{ bestandsnaam, docxBase64 }` (eigen 35mb-parser vóór de generieke), antwoord `{ bestandsnaam, aantalCheckboxen, pdfBase64, lettertypen: { gevraagd, inPdf, vervangen }, engine, duurMs, symbolenVervangen, ankersGeschat, vormenVerwijderd }`. Fouten: `VALIDATION` 400/413, `CONVERSIE_ENGINE_ONBESCHIKBAAR` 503, `CONVERSIE_MISLUKT` 422, `CONVERSIE_TIMEOUT` 504, `CONVERSIE_DRUK` 503. |
+| `POST /api/conversies` | bearer | De conversie. Body `{ bestandsnaam, docxBase64 }` (eigen 35mb-parser vóór de generieke), antwoord `{ bestandsnaam, aantalCheckboxen, pdfBase64, lettertypen: { gevraagd, inPdf, vervangen }, engine, duurMs, symbolenVervangen, ankersGeschat, vormenVerwijderd, ontbrekendeAfbeeldingen }`. Fouten: `VALIDATION` 400/413, `CONVERSIE_ENGINE_ONBESCHIKBAAR` 503, `CONVERSIE_MISLUKT` 422, `CONVERSIE_TIMEOUT` 504, `CONVERSIE_DRUK` 503. |
 | `GET /api/conversies` | `requireAdmin` | Het conversies-logboek (migratie 0003), server-side gepagineerd; metadata, nooit documentinhoud. |
 | `GET /api/audit-log` | `requireAdmin` | Server-side gepagineerd logboek (`logAction`/`logActionZachtjes`). |
 | `PUT /api/config/:key` | `requireAdmin` | Alleen `CONFIG_WHITELIST`-sleutels (fail-closed). |
@@ -307,6 +307,18 @@ De keten, per upload, in `backend/lib/`:
    (Regular/Bold/Italic/Bold Italic). Nagebootst met DejaVuSans-Bold (zelfde
    opbouw): vóór regular-terugval, erna de Bold-snit. Tests in
    `test/lettertypeNamen.test.js`.
+
+   Tot slot sluit **`gekoppeldeAfbeeldingen.js`** afbeeldingen in die de .docx
+   alleen koppelt (`<a:blip r:link=…>` naar `file:///E:\…\AFBEELDINGEN CPQ\…`).
+   De configurator kan ze niet insluiten (Mark, 2026-09-24) en op de CDN staan
+   ze niet; de server zoekt ze op bestandsnaam in `/uploads/afbeeldingen` of
+   `AFBEELDINGEN_DIR` (hoofdletterongevoelig, submappen tot 4 diep). Het pad
+   uit het document opent nooit een bestand — alleen de naam is een sleutel in
+   de index van die map. Gevonden: `word/media/gekoppeld-N.ext`, interne
+   relatie, `r:link` → `r:embed`, content type erbij. Niet gevonden: in
+   `ontbrekendeAfbeeldingen` van het antwoord en als waarschuwing in de app.
+   `conversie.js` zoekt ze vóór de voorbewerking (`gekoppeldeAfbeeldingenInDocx`
+   pakt alleen de `.rels` uit). Tests in `test/gekoppeldeAfbeeldingen.test.js`.
 2. **`docxNaarPdf.js`** (port van `DocxToPdfService.java`) — LibreOffice
    headless met per conversie een **eigen tijdelijk gebruikersprofiel**
    (`-env:UserInstallation`; anders weigert LO een tweede instantie en botsen
@@ -496,7 +508,8 @@ cd frontend && npm run check:i18n
 - `backend/test/migraties.test.js` — idempotentie (drie keer draaien) en een
   gesloten nummerreeks.
 - `backend/test/docxVoorbewerking.test.js`, `verborgenVormen.test.js`,
-  `tekstvakStijl.test.js`, `lettertypeNamen.test.js`, `pdfCheckboxAnkers.test.js`, `lettertypen.test.js` — ports van de Java-tests uit `esign_motrac` plus de
+  `tekstvakStijl.test.js`, `lettertypeNamen.test.js`, `gekoppeldeAfbeeldingen.test.js`,
+  `pdfCheckboxAnkers.test.js`, `lettertypen.test.js` — ports van de Java-tests uit `esign_motrac` plus de
   lettertype-laag; pure logica, geen DB of LibreOffice (de test-PDF wordt met
   pdf-lib + DejaVu Sans gebouwd).
 - `backend/test/conversie.test.js` — de conversie over de echte server:

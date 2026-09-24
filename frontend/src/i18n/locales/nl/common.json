@@ -145,6 +145,8 @@
       "symbolenSub": "Wingdings-vakjes → ☐",
       "geenCheckboxen": "Er zijn geen checkboxen (☐) gevonden. De PDF is wel gemaakt, maar DocuSign krijgt geen aanvinkvelden. Controleer of het document het vakje ☐ of het Wingdings 2-symbool gebruikt.",
       "geschat": "Bij {{aantal}} anker(s) stond het vakje midden in een tekstregel; de positie is geschat. Controleer die velden in DocuSign.",
+      "afbeeldingenTitel": "Afbeelding niet gevonden",
+      "afbeeldingenTekst": "Deze offerte koppelt aan een afbeelding op een netwerkschijf die niet in de beeldbank van de converter staat: {{namen}}. Op die plek staat in de PDF een lege vlek. Vraag de beheerder het bestand aan de beeldbank toe te voegen en converteer daarna opnieuw.",
       "lettertypen": "Lettertypen in het document",
       "geenLettertypen": "geen expliciete lettertypen",
       "vervangen": "vervangen",

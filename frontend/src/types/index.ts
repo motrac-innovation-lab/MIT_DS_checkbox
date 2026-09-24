@@ -30,6 +30,12 @@ export interface ConversieResultaat {
   symbolenVervangen: number
   /** Ankers waarvan de positie geschat is (☐ midden in een tekstregel). */
   ankersGeschat: number
+  /**
+   * Afbeeldingen die de .docx alleen koppelt (bv. E:\… op een Motrac-pc) en die
+   * niet in de afbeeldingenmap van de server staan — in de PDF een lege plek.
+   * Optioneel: een oudere backend stuurt het veld niet mee.
+   */
+  ontbrekendeAfbeeldingen?: string[]
 }
 
 /** Antwoord van GET /api/conversies/status. */

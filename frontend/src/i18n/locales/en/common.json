@@ -145,6 +145,8 @@
       "symbolenSub": "Wingdings boxes → ☐",
       "geenCheckboxen": "No checkboxes (☐) were found. The PDF was created, but DocuSign will get no checkbox fields. Check that the document uses the ☐ character or the Wingdings 2 symbol.",
       "geschat": "For {{aantal}} anchor(s) the box sat in the middle of a text line; its position is estimated. Check those fields in DocuSign.",
+      "afbeeldingenTitel": "Image not found",
+      "afbeeldingenTekst": "This quote links to an image on a network drive that is not in the converter's image library: {{namen}}. The PDF shows an empty space there. Ask the administrator to add the file to the image library, then convert again.",
       "lettertypen": "Fonts in the document",
       "geenLettertypen": "no explicit fonts",
       "vervangen": "substituted",

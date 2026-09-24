@@ -20,6 +20,7 @@ import { DocxOngeldig, voorbewerkDocx } from './docxVoorbewerking.js'
 import { RenderFout, docxNaarPdf } from './docxNaarPdf.js'
 import { lettertypenInPdf, plaatsAnkers } from './pdfCheckboxAnkers.js'
 import { beschikbareLettertypen, lettertypeAliassen, vergelijkLettertypen } from './lettertypen.js'
+import { gekoppeldeAfbeeldingenInDocx, zoekAfbeeldingen } from './gekoppeldeAfbeeldingen.js'
 
 /** Zelfde grens als `converter.max-file-size-mb=25` in de PoC. */
 export const MAX_DOCX_BYTES = 25 * 1024 * 1024
@@ -88,7 +89,7 @@ export function pdfNaam(docxNaam) {
  *   bestandsnaam: string, aantalCheckboxen: number, pdf: Uint8Array,
  *   lettertypen: { gevraagd: string[], inPdf: string[], vervangen: string[] },
  *   engine: string, duurMs: number, symbolenVervangen: number, ankersGeschat: number,
- *   vormenVerwijderd: number
+ *   vormenVerwijderd: number, ontbrekendeAfbeeldingen: string[]
  * }>}
  */
 export async function converteerOfferte({ bestandsnaam, docx }) {
@@ -107,14 +108,19 @@ export async function converteerOfferte({ bestandsnaam, docx }) {
       // Eerst de fontbestanden: de voorbewerking zet namen die LibreOffice
       // daarin niet als familie vindt om (DaxPro-Bold → DaxPro + vet).
       const fonts = await beschikbareLettertypen()
+      // Gekoppelde afbeeldingen (E:\… op een Motrac-pc) uit de beeldbank op de server.
+      const afbeeldingen = await zoekAfbeeldingen(gekoppeldeAfbeeldingenInDocx(docx))
+      if (afbeeldingen.ontbrekend.length) {
+        console.warn(`Gekoppelde afbeelding(en) niet in de afbeeldingenmap: ${afbeeldingen.ontbrekend.join(', ')}`)
+      }
       let voorbewerkt
       try {
-        voorbewerkt = voorbewerkDocx(docx, { lettertypeAliassen: lettertypeAliassen(fonts) })
+        voorbewerkt = voorbewerkDocx(docx, { lettertypeAliassen: lettertypeAliassen(fonts), afbeeldingen: afbeeldingen.gevonden })
       } catch (e) {
         if (e instanceof DocxOngeldig) throw new ConversieFout('VALIDATION', e.message, { status: 400 })
         throw e
       }
-      console.log(`DOCX voorbewerkt: ${voorbewerkt.vervangingen} symbool-run(s) vervangen door ☐, ${voorbewerkt.vormenVerwijderd} bedekte vorm(en) verwijderd, ${voorbewerkt.tekstvakAlineas} tekstvak-alinea('s) op de standaardstijl gezet`)
+      console.log(`DOCX voorbewerkt: ${voorbewerkt.vervangingen} symbool-run(s) vervangen door ☐, ${voorbewerkt.vormenVerwijderd} bedekte vorm(en) verwijderd, ${voorbewerkt.tekstvakAlineas} tekstvak-alinea('s) op de standaardstijl gezet, ${voorbewerkt.afbeeldingenIngesloten} gekoppelde afbeelding(en) ingesloten`)
 
       const docxPad = path.join(werkmap, 'voorbewerkt.docx')
       await writeFile(docxPad, voorbewerkt.docx)
@@ -160,6 +166,7 @@ export async function converteerOfferte({ bestandsnaam, docx }) {
         symbolenVervangen: voorbewerkt.vervangingen,
         ankersGeschat: gestempeld.ankers.filter((a) => !a.exact).length,
         vormenVerwijderd: voorbewerkt.vormenVerwijderd,
+        ontbrekendeAfbeeldingen: afbeeldingen.ontbrekend,
       }
     } finally {
       await rm(werkmap, { recursive: true, force: true })

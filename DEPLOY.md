@@ -38,6 +38,18 @@ Gotenberg-image. `/api/_health` meldt dat met `conversie.viaFontmappen: false`,
 en of de fonts daar echt staan blijkt pas uit `lettertypen.vervangen` in het
 antwoord van een conversie (moet `[]` zijn voor een DaxPro-offerte).
 
+**Beeldbank (gekoppelde afbeeldingen).** Offertes uit de configurator sluiten
+de truckfoto niet in maar koppelen hem aan de netwerkschijf
+(`E:\…\Standaardbestanden BID\Foto's\AFBEELDINGEN CPQ\<naam>.png`). De
+server kan daar niet bij; de converter zoekt elke gekoppelde afbeelding daarom
+op **bestandsnaam** (hoofdletterongevoelig, ook in submappen) in
+`/uploads/afbeeldingen/` (persistente opslag) of in `AFBEELDINGEN_DIR=…`, en
+sluit hem vóór de render in. Zet dus een kopie van de map `AFBEELDINGEN CPQ`
+in `/uploads/afbeeldingen/` en werk die bij als er modellen bijkomen. Wat er
+niet in staat, noemt het conversie-antwoord in `ontbrekendeAfbeeldingen` en de
+app toont het als waarschuwing — in de PDF staat daar dan een lege vlek. Geldt
+voor beide routes: het insluiten gebeurt vóór de render, in de backend.
+
 **Geheugen.** Eén LibreOffice-render piekt op 400–600 MB; standaard 2
 gelijktijdige renders per worker (`CONVERSIE_MAX_GELIJKTIJDIG`), en cluster
 mode geeft één worker per core. Reken daar op bij het kiezen van de server.
@@ -73,7 +85,7 @@ mode geeft één worker per core. Reken daar op bij het kiezen van de server.
    (`https://9x24841z85.dev.motrac.app`) en `MOTRAC_VERIFY_KEY`.
    `PORT` en `NODE_ENV` zet het platform zelf. Optioneel voor de conversie:
    `DOCX_PDF_ENGINE`/`GOTENBERG_URL` (route B hierboven), `LIBREOFFICE_COMMAND`,
-   `FONTS_DIR`, `CONVERSIE_MAX_GELIJKTIJDIG`, `LIBREOFFICE_TIMEOUT_SECONDEN`
+   `FONTS_DIR`, `AFBEELDINGEN_DIR`, `CONVERSIE_MAX_GELIJKTIJDIG`, `LIBREOFFICE_TIMEOUT_SECONDEN`
    (zie `backend/.env.example`).
 4. **GitHub → Settings → Secrets and variables → Actions**:
    - Secrets: `BACKEND_DASHBOARD_DEPLOY_TOKEN`, `FRONTEND_DASHBOARD_DEPLOY_TOKEN`,
