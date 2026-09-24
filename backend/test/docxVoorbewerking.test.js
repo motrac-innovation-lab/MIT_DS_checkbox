@@ -8,6 +8,7 @@ import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate'
 import {
   DocxOngeldig,
   VERVANGING,
+  gevraagdeLettertypen,
   isTransformeerbaarWordPart,
   transformeerDocumentXml,
   voorbewerkDocx,
@@ -166,4 +167,21 @@ test('een lettertype dat wél zichtbare tekst zet en niet in de PDF staat, wordt
 test('weigert wat geen docx is', () => {
   assert.throws(() => voorbewerkDocx(strToU8('dit is geen zip')), DocxOngeldig)
   assert.throws(() => voorbewerkDocx(maakDocx({ 'iets.txt': 'zip zonder word/document.xml' })), DocxOngeldig)
+})
+
+test('gevraagdeLettertypen: dezelfde namen als voorbewerkDocx, maar vóór enige omzetting en zonder transformaties', () => {
+  const docx = maakDocx({
+    'word/document.xml': `<w:document ${W}><w:body><w:p><w:pPr><w:pStyle w:val="Kop"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="DaxPro-Bold" w:hAnsi="DaxPro-Bold" w:cs="Arial"/></w:rPr><w:t>Datum:</w:t></w:r></w:p></w:body></w:document>`,
+    'word/header1.xml': `<w:hdr ${W}><w:p><w:r><w:rPr><w:rFonts w:ascii="DaxPro-Medium"/></w:rPr><w:t>kop</w:t></w:r></w:p></w:hdr>`,
+    'word/styles.xml': `<w:styles ${W}><w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri"/></w:rPr></w:rPrDefault></w:docDefaults>`
+      + '<w:style w:type="paragraph" w:styleId="Kop"><w:basedOn w:val="Basis"/></w:style>'
+      + '<w:style w:type="paragraph" w:styleId="Basis"><w:rPr><w:rFonts w:ascii="DaxPro-Light" w:hAnsi="DaxPro-Light"/></w:rPr></w:style>'
+      + '<w:style w:type="paragraph" w:styleId="Ongebruikt"><w:rPr><w:rFonts w:ascii="Times New Roman"/></w:rPr></w:style></w:styles>',
+    'word/media/foto.png': 'geen xml',
+  })
+  assert.deepEqual(gevraagdeLettertypen(docx), ['Calibri', 'DaxPro-Bold', 'DaxPro-Light', 'DaxPro-Medium'])
+  // Mét een alias vraagt voorbewerkDocx om de familie; de probe moet juist de oorspronkelijke naam zien.
+  const met = voorbewerkDocx(docx, { lettertypeAliassen: { 'daxpro-bold': { familie: 'DaxPro', vet: true, cursief: false } } })
+  assert.deepEqual(met.lettertypen, ['Calibri', 'DaxPro', 'DaxPro-Light', 'DaxPro-Medium'])
+  assert.throws(() => gevraagdeLettertypen(new Uint8Array([1, 2, 3])), DocxOngeldig)
 })

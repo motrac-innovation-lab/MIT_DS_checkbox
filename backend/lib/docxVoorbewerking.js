@@ -147,6 +147,37 @@ function relsPad(naam) {
 const STIJL_PART = /^word\/(?:styles|numbering)\.xml$/
 
 /**
+ * Alleen de lettertypen die het document vraagt — vóór enige omzetting, zonder
+ * transformaties of her-zippen. Voor de render-probe (lettertypeProbe.js), die
+ * moet weten welke namen het document gebruikt vóórdat de voorbewerking met de
+ * gevonden aliassen draait; zo draait voorbewerkDocx() maar één keer. Pakt
+ * alleen de XML-onderdelen uit (geen media).
+ * @returns {string[]} gesorteerd, zonder symboollettertypen
+ */
+export function gevraagdeLettertypen(docxBytes) {
+  let onderdelen
+  try {
+    onderdelen = unzipSync(docxBytes instanceof Uint8Array ? docxBytes : new Uint8Array(docxBytes), {
+      filter: (f) => isTransformeerbaarWordPart(f.name) || f.name === 'word/styles.xml',
+    })
+  } catch {
+    throw new DocxOngeldig('Het bestand is geen geldig .docx-document (geen leesbaar zip-archief).')
+  }
+  const gevraagd = new Set()
+  const stijlen = new Set()
+  for (const [naam, bytes] of Object.entries(onderdelen)) {
+    if (!isTransformeerbaarWordPart(naam)) continue
+    const gebruikt = lettertypenInOnderdeel(strFromU8(bytes))
+    for (const f of gebruikt.fonts) gevraagd.add(f)
+    for (const s of gebruikt.stijlen) stijlen.add(s)
+  }
+  if (onderdelen['word/styles.xml']) {
+    for (const f of lettertypenUitStijlen(strFromU8(onderdelen['word/styles.xml']), stijlen)) gevraagd.add(f)
+  }
+  return [...gevraagd].filter((f) => f && !SYMBOOL_LETTERTYPEN.test(f)).sort((a, b) => a.localeCompare(b, 'nl'))
+}
+
+/**
  * Voert de voorbewerking uit op de ruwe DOCX-bytes.
  * @param {Uint8Array} docxBytes
  * @param {{

@@ -570,6 +570,9 @@ app.post('/api/conversies', ah(async (req, res) => {
       vormenVerwijderd: resultaat.vormenVerwijderd,
       afbeeldingenIngesloten: resultaat.afbeeldingenIngesloten,
       ontbrekendeAfbeeldingen: resultaat.ontbrekendeAfbeeldingen,
+      // Namen die de voorbewerking omzette omdat LibreOffice ze niet als familie
+      // vindt (bv. DaxPro-Bold → DaxPro + vet), met het aantal opmaakblokken.
+      lettertypenOmgezet: resultaat.lettertypenOmgezet,
     })
   } catch (e) {
     if (!(e instanceof ConversieFout)) throw e
