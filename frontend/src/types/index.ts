@@ -94,6 +94,42 @@ export interface ConversieRegel {
   foutmelding: string | null
 }
 
+/** Eén afbeelding in de beeldbank op de server (beheerpagina). */
+export interface BeeldbankItem {
+  naam: string
+  grootte: number | null
+  gewijzigdOp: string | null
+  /** Submap binnen de beeldbank, of null als hij er direct in staat. */
+  submap: string | null
+  /** In een tweede, alleen-lezen map uit AFBEELDINGEN_DIR: niet te vervangen of te verwijderen. */
+  alleenLezen: boolean
+}
+
+export interface BeeldbankOpslag {
+  map: string
+  bestaat: boolean
+  /** Bestaat de map, of kan hij worden aangemaakt (de persistente opslag erboven staat er)? */
+  kanAanmaken: boolean
+}
+
+export interface BeeldbankLijst extends Pagina<BeeldbankItem> {
+  opslag: BeeldbankOpslag
+}
+
+/** Welke bestanden van een batch staan er al (zelfde naam én grootte)? */
+export interface BeeldbankVergelijking {
+  nieuw: string[]
+  gewijzigd: string[]
+  gelijk: string[]
+}
+
+export type BeeldbankWeigerReden = 'naam' | 'leeg' | 'te_groot' | 'formaat' | 'alleen_lezen' | 'schrijven'
+
+export interface BeeldbankUpload {
+  opgeslagen: { naam: string, vervangen: boolean }[]
+  geweigerd: { naam: string, reden: BeeldbankWeigerReden }[]
+}
+
 /** Server-side gepagineerde lijst, zelfde vorm als het audit-logboek. */
 export interface Pagina<T> {
   items: T[]

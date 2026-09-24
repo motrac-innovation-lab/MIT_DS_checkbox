@@ -2,7 +2,7 @@
   "pagina": {
     "titel": "Guided tour",
     "uitlegGebruiker": "The tour shows you around in a few steps: where to convert a quotation from the configurator, what happens to your document and what you get back.",
-    "uitlegAdmin": "You are an administrator, so after the conversion your tour also covers the server status and the conversion log. A colleague without administrator rights only sees the first part."
+    "uitlegAdmin": "You are an administrator, so after the conversion your tour also covers the server status, the conversion log and the image library. A colleague without administrator rights only sees the first part."
   },
   "voortgang": "Step {{nummer}} of {{totaal}}",
   "volgende": "Next",
@@ -22,7 +22,7 @@
   "groep": {
     "start": "The screen",
     "converteren": "Converting a quotation",
-    "logboek": "The log"
+    "logboek": "Administration"
   },
   "stap": {
     "welkom": {
@@ -52,6 +52,10 @@
     "geschiedenis": {
       "titel": "The conversion log",
       "tekst": "This lists every conversion anyone has run: who, when, which file, how many boxes and whether it succeeded. Failed attempts are here too, with their error code — useful when a colleague reports that something did not work. Only these details are kept; never the documents themselves. You see this tab as an administrator; your colleagues do not."
+    },
+    "beeldbank": {
+      "titel": "The image library",
+      "tekst": "Quotes link the truck photos to the E drive, which the server cannot reach. That is why a copy of the AFBEELDINGEN CPQ folder lives here. Put the whole folder in once; for a new product, upload only the new photos. Whatever is missing here, the app asks the user for while converting. This tab, too, is only visible to you as an administrator."
     },
     "feedbackGeven": {
       "titel": "Run into something?",

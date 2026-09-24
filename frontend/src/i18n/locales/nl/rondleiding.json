@@ -2,7 +2,7 @@
   "pagina": {
     "titel": "Rondleiding",
     "uitlegGebruiker": "De rondleiding wijst je in een paar stappen de weg: waar je een offerte uit de configurator omzet, wat er met je document gebeurt en wat je terugkrijgt.",
-    "uitlegAdmin": "Jij bent beheerder, dus jouw rondleiding loopt na het converteren ook langs de serverstatus en het conversielogboek. Een collega zonder beheerrechten krijgt alleen het eerste deel te zien."
+    "uitlegAdmin": "Jij bent beheerder, dus jouw rondleiding loopt na het converteren ook langs de serverstatus, het conversielogboek en de beeldbank. Een collega zonder beheerrechten krijgt alleen het eerste deel te zien."
   },
   "voortgang": "Stap {{nummer}} van {{totaal}}",
   "volgende": "Volgende",
@@ -22,7 +22,7 @@
   "groep": {
     "start": "Het scherm",
     "converteren": "Een offerte omzetten",
-    "logboek": "Het logboek"
+    "logboek": "Beheer"
   },
   "stap": {
     "welkom": {
@@ -52,6 +52,10 @@
     "geschiedenis": {
       "titel": "Het conversielogboek",
       "tekst": "Hier staat elke conversie die iemand heeft gedaan: wie, wanneer, welk bestand, hoeveel vakjes en of het lukte. Ook mislukte pogingen, met de foutcode erbij — handig als een collega meldt dat het niet werkte. Alleen deze gegevens worden bewaard; de documenten zelf nooit. Deze tab zie jij als beheerder, je collega's niet."
+    },
+    "beeldbank": {
+      "titel": "De beeldbank",
+      "tekst": "Offertes koppelen de truckfoto's aan de E-schijf, waar de server niet bij kan. Daarom staat hier een kopie van de map AFBEELDINGEN CPQ. Zet er één keer de hele map in; bij een nieuw product upload je alleen de nieuwe foto's. Wat hier ontbreekt, vraagt de app bij het converteren aan de gebruiker. Ook deze tab zie alleen jij als beheerder."
     },
     "feedbackGeven": {
       "titel": "Loop je ergens tegenaan?",

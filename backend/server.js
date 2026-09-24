@@ -31,6 +31,7 @@ import { ConversieFout, MAX_DOCX_BYTES, converteerOfferte } from './lib/conversi
 import { ENGINE as DOCX_PDF_ENGINE, detecteerLibreOffice, engineStatus } from './lib/docxNaarPdf.js'
 import { VEREISTE_LETTERTYPEN, beschikbareLettertypen, fontMappen, ontbrekendeVereisteLettertypen } from './lib/lettertypen.js'
 import { beeldbankHeeft, isVeiligeBeeldnaam } from './lib/gekoppeldeAfbeeldingen.js'
+import { BeeldbankFout, MAX_BEELD_BYTES, lijstBeeldbank, slaAfbeeldingenOp, vergelijkMetBeeldbank, verwijderAfbeelding } from './lib/beeldbank.js'
 
 // De slug die deze app in Motrac Toegangsbeheer heeft (toegekend 2026-09-22).
 // Moet gelijk zijn aan DEFAULT_SLUG in frontend/src/lib/motracAuth.ts en aan
@@ -93,6 +94,9 @@ const IN_DOUBT_MESSAGE =
 
 // Base64 is 4/3 van de ruwe grootte; afgerond naar boven op hele MB's + 1 MB envelop.
 const CONVERSIE_BODY_LIMIET = `${Math.ceil((MAX_DOCX_BYTES * 4) / 3 / (1024 * 1024)) + 1}mb`
+// Beeldbank-upload: één afbeelding tot MAX_BEELD_BYTES, als base64 (4/3) plus
+// marge. Een batch knipt de app zelf in stukken onder deze grens.
+const BEELDBANK_BODY_LIMIET = `${Math.ceil((MAX_BEELD_BYTES * 4) / 3 / (1024 * 1024)) + 2}mb`
 
 // ---- Auth: token-introspectie bij Motrac-beheer --------------------------
 
@@ -398,6 +402,8 @@ app.use('/api/feedback', express.json({ limit: '12mb' }))
 // fetch-helper van de frontend, lib/api.ts, onaangepast blijft): 25 MB .docx
 // wordt ~34 MB base64, plus een marge voor de envelop.
 app.use('/api/conversies', express.json({ limit: CONVERSIE_BODY_LIMIET }))
+// Afbeeldingen voor de beeldbank (beheerder), ook als base64 in JSON.
+app.use('/api/beeldbank', express.json({ limit: BEELDBANK_BODY_LIMIET }))
 // Klein en generiek: voorkomt dat een ongeauthenticeerde aanvrager tot 12MB
 // laat parsen vóórdat de auth-check hieronder ooit draait.
 app.use(express.json({ limit: '256kb' }))
@@ -638,6 +644,67 @@ app.get('/api/conversies', requireAdmin, ah(async (req, res) => {
     pageSize,
     totaal,
   })
+}))
+
+// ---- Beeldbank (beheerder): de afbeeldingen die gekoppelde E:\-afbeeldingen
+// in een offerte vervangen — zie lib/beeldbank.js. Een hele batch en een los
+// nieuw product gaan via dezelfde POST; de app knipt een batch in stukken.
+const MAX_BEELDBANK_PER_UPLOAD = 100
+const MAX_BEELDBANK_VERGELIJK = 2000
+
+const stuurBeeldbankFout = (res, e) => {
+  if (e instanceof BeeldbankFout) return sendErr(res, apiError(e.code, e.message, e.status))
+  throw e
+}
+
+app.get('/api/beeldbank', requireAdmin, ah(async (req, res) => {
+  const zoek = typeof req.query.zoek === 'string' ? req.query.zoek.slice(0, 200) : ''
+  res.json(await lijstBeeldbank({ zoek, ...paginering(req) }))
+}))
+
+// Body: { bestanden: [{ bestandsnaam, grootte }] } → { nieuw, gewijzigd, gelijk }.
+// Zo stuurt de app bij een batch alleen wat nieuw of anders is.
+app.post('/api/beeldbank/vergelijk', requireAdmin, ah(async (req, res) => {
+  const lijst = req.body?.bestanden
+  if (!Array.isArray(lijst) || lijst.length > MAX_BEELDBANK_VERGELIJK
+    || !lijst.every((b) => isVeiligeBeeldnaam(b?.bestandsnaam) && Number.isSafeInteger(b?.grootte) && b.grootte >= 0)) {
+    return sendErr(res, apiError('VALIDATION', `Geef maximaal ${MAX_BEELDBANK_VERGELIJK} bestanden met naam en grootte.`, 400))
+  }
+  res.json(await vergelijkMetBeeldbank(lijst))
+}))
+
+// Body: { bestanden: [{ bestandsnaam, base64 }] } → { opgeslagen, geweigerd }.
+// Elk bestand staat op zichzelf; een geweigerd bestand houdt de rest niet tegen.
+app.post('/api/beeldbank', requireAdmin, ah(async (req, res) => {
+  const lijst = req.body?.bestanden
+  if (!Array.isArray(lijst) || !lijst.length || lijst.length > MAX_BEELDBANK_PER_UPLOAD
+    || !lijst.every((b) => typeof b?.bestandsnaam === 'string' && typeof b?.base64 === 'string' && /^[A-Za-z0-9+/]*={0,2}$/.test(b.base64))) {
+    return sendErr(res, apiError('VALIDATION', `Stuur 1 tot ${MAX_BEELDBANK_PER_UPLOAD} afbeeldingen als { bestandsnaam, base64 }.`, 400))
+  }
+  let uitkomst
+  try {
+    uitkomst = await slaAfbeeldingenOp(lijst.map((b) => ({ bestandsnaam: b.bestandsnaam, bytes: new Uint8Array(Buffer.from(b.base64, 'base64')) })))
+  } catch (e) {
+    return stuurBeeldbankFout(res, e)
+  }
+  if (uitkomst.opgeslagen.length) {
+    const vervangen = uitkomst.opgeslagen.filter((o) => o.vervangen).length
+    const namen = uitkomst.opgeslagen.slice(0, 5).map((o) => o.naam).join(', ')
+    const meer = uitkomst.opgeslagen.length > 5 ? ` en ${uitkomst.opgeslagen.length - 5} meer` : ''
+    await logActionZachtjes(req, 'beeldbank.opgeslagen', `${uitkomst.opgeslagen.length} afbeelding(en) opgeslagen (${vervangen} vervangen): ${namen}${meer}.`)
+  }
+  res.json(uitkomst)
+}))
+
+app.delete('/api/beeldbank/:naam', requireAdmin, ah(async (req, res) => {
+  let naam
+  try {
+    naam = await verwijderAfbeelding(req.params.naam)
+  } catch (e) {
+    return stuurBeeldbankFout(res, e)
+  }
+  await logActionZachtjes(req, 'beeldbank.verwijderd', `Afbeelding ${naam} verwijderd uit de beeldbank.`)
+  res.json({ verwijderd: naam })
 }))
 
 // Onbekend /api/*-endpoint (geen van de routes hierboven matchte).

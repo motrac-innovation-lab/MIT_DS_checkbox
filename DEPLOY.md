@@ -48,7 +48,13 @@ server kan daar niet bij; de converter zoekt elke gekoppelde afbeelding daarom
 op **bestandsnaam** (hoofdletterongevoelig, ook in submappen) in
 `/uploads/afbeeldingen/` (persistente opslag) of in `AFBEELDINGEN_DIR=…`, en
 sluit hem vóór de render in. Zet dus een kopie van de map `AFBEELDINGEN CPQ`
-in `/uploads/afbeeldingen/` en werk die bij als er modellen bijkomen. Wat er
+in `/uploads/afbeeldingen/` en werk die bij als er modellen bijkomen — dat
+kan een beheerder in de app zelf, op de tab **Beeldbank** (hele map als batch,
+of losse bestanden per nieuw product). Die pagina schrijft in de eerste map van
+`AFBEELDINGEN_DIR` (of `/uploads/afbeeldingen/`) en maakt die alleen aan als
+`/uploads` bestaat: **zet de persistente opslag aan voor de backend-applicatie**,
+anders zou elke upload bij de volgende deploy verdwijnen en meldt de pagina
+"Geen opslag voor de beeldbank". Wat er
 niet in staat, noemt het conversie-antwoord in `ontbrekendeAfbeeldingen` en de
 app toont het als waarschuwing — in de PDF staat daar dan een lege vlek. Geldt
 voor beide routes: het insluiten gebeurt vóór de render, in de backend.

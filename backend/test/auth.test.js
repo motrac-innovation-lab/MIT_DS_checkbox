@@ -58,6 +58,10 @@ describe('requireAdmin', { skip: slaOverZonderDb }, () => {
     ['GET', '/api/audit-log'],
     ['PUT', '/api/config/iets'],
     ['GET', '/api/conversies'],
+    ['GET', '/api/beeldbank'],
+    ['POST', '/api/beeldbank'],
+    ['POST', '/api/beeldbank/vergelijk'],
+    ['DELETE', '/api/beeldbank/iets.png'],
   ]
 
   for (const [methode, pad] of BEHEERDERROUTES) {

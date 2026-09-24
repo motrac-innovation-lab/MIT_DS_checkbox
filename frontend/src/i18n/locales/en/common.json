@@ -93,7 +93,8 @@
   "nav": {
     "converteren": "Convert",
     "geschiedenis": "History",
-    "rondleiding": "Guided tour"
+    "rondleiding": "Guided tour",
+    "beeldbank": "Image library"
   },
   "algemeen": {
     "laden": "Loading…",
@@ -193,6 +194,67 @@
       "duur": "Duration",
       "lettertypen": "Substituted fonts",
       "fout": "Error"
+    }
+  },
+  "beeldbank": {
+    "titel": "Image library",
+    "verwijderen": "Delete",
+    "alleenLezen": "read-only",
+    "verwijderTitel": "Delete image?",
+    "verwijderTekst": "{{naam}} will be removed from the image library. A quote that links this image will then get an empty spot in the PDF — unless the user picks the AFBEELDINGEN CPQ folder.",
+    "kolom": {
+      "naam": "File name",
+      "submap": "Subfolder",
+      "grootte": "Size",
+      "gewijzigd": "Modified"
+    },
+    "upload": {
+      "titel": "Add images",
+      "uitleg": "A quote links photos on the network drive (E:\\…\\AFBEELDINGEN CPQ). The server looks them up here by file name, ignoring case. Pick the whole folder once; for a new product, add only the new files afterwards. An existing name is replaced. At most {{max}} per image.",
+      "mapVeld": "Whole folder (batch)",
+      "mapHint": "Pick the AFBEELDINGEN CPQ folder. Subfolders are included; only image files are taken.",
+      "bestandenVeld": "Individual files",
+      "bestandenHint": "For a new product: pick one or more images.",
+      "vergelijken": "Comparing with what the server already has…",
+      "bezig": "Uploading: {{klaar}} of {{totaal}}"
+    },
+    "selectie": {
+      "titel": "{{aantal}} image(s) selected",
+      "nieuw": "{{aantal}} new",
+      "gewijzigd": "{{aantal}} changed",
+      "gelijk": "{{aantal}} already present",
+      "overgeslagen": "{{aantal}} file(s) skipped: not an image.",
+      "teGroot": "Too large, skipped: {{namen}}",
+      "dubbel": "{{aantal}} name(s) occur more than once in the folder; the last one is used: {{namen}}",
+      "ookOngewijzigd": "Also upload the images that are already present",
+      "uploaden": "Upload {{aantal}}",
+      "annuleren": "Cancel"
+    },
+    "uitkomst": {
+      "titel": "{{aantal}} image(s) saved, {{vervangen}} of which replaced",
+      "klaar": "Conversions use them from now on.",
+      "geweigerd": "{{aantal}} file(s) not saved:"
+    },
+    "reden": {
+      "naam": "invalid name",
+      "leeg": "empty file",
+      "te_groot": "too large",
+      "formaat": "content does not match the extension",
+      "alleen_lezen": "is in a read-only folder",
+      "schrijven": "saving failed"
+    },
+    "opslag": {
+      "geenTitel": "No storage for the image library",
+      "geenTekst": "The folder {{map}} does not exist and cannot be created. Enable persistent storage (/uploads) for the backend application, or set AFBEELDINGEN_DIR. Until then nothing can be uploaded."
+    },
+    "lijst": {
+      "titel": "In the image library",
+      "zoekVeld": "Search by name",
+      "zoekPlaceholder": "e.g. E50 or 1254_00",
+      "aantal": "{{aantal}} image(s)",
+      "aantalGezocht": "{{aantal}} match(es)",
+      "leeg": "The image library is still empty.",
+      "geenTreffers": "No images with this name."
     }
   }
 }

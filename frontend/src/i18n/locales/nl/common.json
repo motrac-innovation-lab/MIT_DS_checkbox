@@ -93,7 +93,8 @@
   "nav": {
     "converteren": "Converteren",
     "geschiedenis": "Geschiedenis",
-    "rondleiding": "Rondleiding"
+    "rondleiding": "Rondleiding",
+    "beeldbank": "Beeldbank"
   },
   "algemeen": {
     "laden": "Laden…",
@@ -193,6 +194,67 @@
       "duur": "Duur",
       "lettertypen": "Vervangen lettertypen",
       "fout": "Fout"
+    }
+  },
+  "beeldbank": {
+    "titel": "Beeldbank",
+    "verwijderen": "Verwijderen",
+    "alleenLezen": "alleen-lezen",
+    "verwijderTitel": "Afbeelding verwijderen?",
+    "verwijderTekst": "{{naam}} verdwijnt uit de beeldbank. Een offerte die deze afbeelding koppelt, krijgt daarna een lege plek in de PDF — tenzij de gebruiker de map AFBEELDINGEN CPQ kiest.",
+    "kolom": {
+      "naam": "Bestandsnaam",
+      "submap": "Submap",
+      "grootte": "Grootte",
+      "gewijzigd": "Gewijzigd"
+    },
+    "upload": {
+      "titel": "Afbeeldingen toevoegen",
+      "uitleg": "Een offerte koppelt foto's aan de netwerkschijf (E:\\…\\AFBEELDINGEN CPQ). De server zoekt ze hier op bestandsnaam, zonder op hoofdletters te letten. Kies één keer de hele map; bij een nieuw product voeg je daarna alleen de nieuwe bestanden toe. Een bestaande naam wordt vervangen. Maximaal {{max}} per afbeelding.",
+      "mapVeld": "Hele map (batch)",
+      "mapHint": "Kies de map AFBEELDINGEN CPQ. Submappen gaan mee; alleen beeldbestanden worden meegenomen.",
+      "bestandenVeld": "Losse bestanden",
+      "bestandenHint": "Voor een nieuw product: kies één of meer afbeeldingen.",
+      "vergelijken": "Vergelijken met wat de server al heeft…",
+      "bezig": "Uploaden: {{klaar}} van {{totaal}}"
+    },
+    "selectie": {
+      "titel": "{{aantal}} afbeelding(en) gekozen",
+      "nieuw": "{{aantal}} nieuw",
+      "gewijzigd": "{{aantal}} gewijzigd",
+      "gelijk": "{{aantal}} al aanwezig",
+      "overgeslagen": "{{aantal}} bestand(en) overgeslagen: geen afbeelding.",
+      "teGroot": "Te groot, overgeslagen: {{namen}}",
+      "dubbel": "{{aantal}} naam/namen komen vaker voor in de map; de laatste wordt gebruikt: {{namen}}",
+      "ookOngewijzigd": "Ook de afbeeldingen die al aanwezig zijn opnieuw uploaden",
+      "uploaden": "{{aantal}} uploaden",
+      "annuleren": "Annuleren"
+    },
+    "uitkomst": {
+      "titel": "{{aantal}} afbeelding(en) opgeslagen, waarvan {{vervangen}} vervangen",
+      "klaar": "De conversie gebruikt ze vanaf nu.",
+      "geweigerd": "{{aantal}} bestand(en) niet opgeslagen:"
+    },
+    "reden": {
+      "naam": "ongeldige naam",
+      "leeg": "leeg bestand",
+      "te_groot": "te groot",
+      "formaat": "inhoud past niet bij de extensie",
+      "alleen_lezen": "staat in een alleen-lezen map",
+      "schrijven": "opslaan mislukt"
+    },
+    "opslag": {
+      "geenTitel": "Geen opslag voor de beeldbank",
+      "geenTekst": "De map {{map}} bestaat niet en kan niet worden aangemaakt. Zet de persistente opslag (/uploads) aan voor de backend-applicatie, of stel AFBEELDINGEN_DIR in. Tot die tijd kan er niets worden geüpload."
+    },
+    "lijst": {
+      "titel": "In de beeldbank",
+      "zoekVeld": "Zoeken op naam",
+      "zoekPlaceholder": "bv. E50 of 1254_00",
+      "aantal": "{{aantal}} afbeelding(en)",
+      "aantalGezocht": "{{aantal}} treffer(s)",
+      "leeg": "De beeldbank is nog leeg.",
+      "geenTreffers": "Geen afbeeldingen met deze naam."
     }
   }
 }

@@ -20,6 +20,7 @@ import { DataProviderContext } from './context/DataContext'
 import { LoginPage } from './modules/auth/LoginPage'
 import { ConversiePage } from './modules/conversie/ConversiePage'
 import { GeschiedenisPage } from './modules/geschiedenis/GeschiedenisPage'
+import { BeeldbankPage } from './modules/beeldbank/BeeldbankPage'
 import Rondleiding from './rondleiding/Rondleiding'
 import RondleidingPagina from './rondleiding/RondleidingPagina'
 import { RondleidingProvider } from './rondleiding/RondleidingContext'
@@ -107,6 +108,7 @@ function HomeShell() {
     // Het logboek van conversies is beheerder-only (server-side afgedwongen
     // door requireAdmin; deze tab is alleen cosmetiek).
     ...(isAdmin ? [{ to: '/geschiedenis', label: t('nav.geschiedenis'), icon: 'history' } as Tab] : []),
+    ...(isAdmin ? [{ to: '/beeldbank', label: t('nav.beeldbank'), icon: 'images' } as Tab] : []),
     // De rondleiding: voor IEDEREEN, maar secundair. `onderaan` zet hem in de
     // zijbalk in de ondergroep vlak boven de streep van taal/thema/uitloggen —
     // de fleet-afspraak voor bestemmingen die geen dagelijkse werktaak zijn.
@@ -138,6 +140,7 @@ function HomeShell() {
             <Route path="/" element={<Navigate to="/converteren" replace />} />
             <Route path="/converteren" element={<ConversiePage />} />
             <Route path="/geschiedenis" element={isAdmin ? <GeschiedenisPage /> : <Navigate to="/converteren" replace />} />
+            <Route path="/beeldbank" element={isAdmin ? <BeeldbankPage /> : <Navigate to="/converteren" replace />} />
             <Route path="/rondleiding" element={<RondleidingPagina />} />
             <Route path="*" element={<Navigate to="/converteren" replace />} />
           </Routes>

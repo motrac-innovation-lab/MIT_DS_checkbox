@@ -233,6 +233,10 @@ echte grens, een `isAdmin`-check in de UI alleen cosmetiek.
 | `POST /api/conversies/afbeeldingen` | bearer | Welke gekoppelde afbeeldingen (`E:\…` in de .docx) heeft de beeldbank op de server? Body `{ namen }` (max. 50, alleen bestandsnamen), antwoord `{ gevonden, ontbrekend }`. Leest alleen de index, geen bestanden. De app vraagt de gebruiker alleen om de map als hier iets ontbreekt. |
 | `POST /api/conversies` | bearer | De conversie. Body `{ bestandsnaam, docxBase64, afbeeldingen? }` (eigen 35mb-parser vóór de generieke; `afbeeldingen` = `[{ bestandsnaam, base64 }]` uit de map van de gebruiker, max. 50), antwoord `{ bestandsnaam, aantalCheckboxen, pdfBase64, lettertypen: { gevraagd, inPdf, vervangen }, engine, duurMs, symbolenVervangen, ankersGeschat, vormenVerwijderd, afbeeldingenIngesloten, ontbrekendeAfbeeldingen, lettertypenOmgezet }`. Fouten: `VALIDATION` 400/413, `CONVERSIE_ENGINE_ONBESCHIKBAAR` 503, `CONVERSIE_MISLUKT` 422, `CONVERSIE_TIMEOUT` 504, `CONVERSIE_DRUK` 503. |
 | `GET /api/conversies` | `requireAdmin` | Het conversies-logboek (migratie 0003), server-side gepagineerd; metadata, nooit documentinhoud. |
+| `GET /api/beeldbank` | `requireAdmin` | De beeldbank (`lib/beeldbank.js`): pagina op naam gesorteerd, `?zoek=`, plus `opslag: { map, bestaat, kanAanmaken }`. |
+| `POST /api/beeldbank/vergelijk` | `requireAdmin` | Body `{ bestanden: [{ bestandsnaam, grootte }] }` (max. 2000) → `{ nieuw, gewijzigd, gelijk }` — zo stuurt een batch alleen wat nieuw of anders is. |
+| `POST /api/beeldbank` | `requireAdmin` | Opslaan/vervangen, body `{ bestanden: [{ bestandsnaam, base64 }] }` (max. 100, ≤ 20 MB per afbeelding; eigen parser vóór de generieke), antwoord `{ opgeslagen, geweigerd }`. Elk bestand staat op zichzelf; weigerredenen `naam`/`leeg`/`te_groot`/`formaat`/`alleen_lezen`/`schrijven`. Audit-log `beeldbank.opgeslagen`. |
+| `DELETE /api/beeldbank/:naam` | `requireAdmin` | Eén afbeelding weg (hoofdletterongevoelig). Audit-log `beeldbank.verwijderd`. |
 | `GET /api/audit-log` | `requireAdmin` | Server-side gepagineerd logboek (`logAction`/`logActionZachtjes`). |
 | `PUT /api/config/:key` | `requireAdmin` | Alleen `CONFIG_WHITELIST`-sleutels (fail-closed). |
 
@@ -424,6 +428,20 @@ De keten, per upload, in `backend/lib/`:
   resultaat) en `modules/geschiedenis/GeschiedenisPage.tsx` (admin;
   `DataTable` + `KaartLijst` uit dezelfde celfuncties, `Pagination`).
   Domein-CSS met voorvoegsel `.offerte-` in `styles/app.css`.
+- **De beeldbank heeft een beheerpagina** (`modules/beeldbank/BeeldbankPage.tsx`,
+  tab `/beeldbank`, admin; Mark, 2026-09-24: "ik zet een keer de hele batch
+  klaar, en bij nieuwe producten moet dit per item geupload kunnen worden").
+  Eén uploadblok voor beide: een map kiezen (`webkitdirectory`) of losse
+  bestanden. `useBeeldbankUpload.ts` filtert op beeldformaat, ontdubbelt op
+  naam, vraagt `POST /api/beeldbank/vergelijk` wat er al met dezelfde grootte
+  staat (standaard overgeslagen) en verstuurt de rest in stukken van ≤ 8 MB /
+  100 bestanden. Server-kant (`backend/lib/beeldbank.js`): altijd in de eerste
+  map van `afbeeldingMappen()`; een bestaande naam wordt op zijn eigen plek
+  vervangen (ook met andere hoofdletters, anders vindt de conversie de oude);
+  inhoud moet bij de extensie passen (magic bytes); schrijven via tmp +
+  rename; de map wordt alleen aangemaakt als de map erboven bestaat — zonder
+  `/uploads` is er geen persistente opslag en toont de pagina dat. Tests in
+  `test/beeldbank.test.js`.
 
 **Uitbreiden** volgt hetzelfde patroon: route in `server.js` + migratie in
 `backend/migrations/` (viercijferig, aansluitend, idempotent —
@@ -458,8 +476,8 @@ alles hier op de tokens van het pakket hoort te staan.
 Zes dingen die je niet ongemerkt moet omgooien:
 - **De rondleiding is ROLBEWUST, en dat is de helft van de functie.** Een stap
   met `alleenAdmin: true` valt weg voor wie de rol `admin` niet heeft: een
-  gewone gebruiker krijgt 7 stappen, een beheerder 9 (de serverstatuskaart en
-  het conversielogboek erbij). De rol komt uit `session.role` — dezelfde
+  gewone gebruiker krijgt 7 stappen, een beheerder 10 (de serverstatuskaart,
+  het conversielogboek en de beeldbank erbij). De rol komt uit `session.role` — dezelfde
   afleiding die bepaalt of die twee schermen überhaupt gerenderd worden, dus
   een onbekende rol valt via AuthContext terug op `gebruiker` en krijgt vanzelf
   de korte rondleiding. Er is geen aparte regel voor.
@@ -562,7 +580,7 @@ cd frontend && npm run check:i18n
 - `backend/test/migraties.test.js` — idempotentie (drie keer draaien) en een
   gesloten nummerreeks.
 - `backend/test/docxVoorbewerking.test.js`, `verborgenVormen.test.js`,
-  `tekstvakStijl.test.js`, `lettertypeNamen.test.js`, `lettertypeProbe.test.js`, `gekoppeldeAfbeeldingen.test.js`,
+  `tekstvakStijl.test.js`, `lettertypeNamen.test.js`, `lettertypeProbe.test.js`, `gekoppeldeAfbeeldingen.test.js`, `beeldbank.test.js`,
   `pdfCheckboxAnkers.test.js`, `lettertypen.test.js` — ports van de Java-tests uit `esign_motrac` plus de
   lettertype-laag; pure logica, geen DB of LibreOffice (de test-PDF wordt met
   pdf-lib + DejaVu Sans gebouwd).
