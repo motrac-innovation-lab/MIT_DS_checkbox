@@ -231,7 +231,7 @@ echte grens, een `isAdmin`-check in de UI alleen cosmetiek.
 | `POST /api/feedback` | bearer | Doorgifte van de FeedbackWidget naar Motrac-beheer; eigen 12mb-body-limiet vanwege screenshots. |
 | `GET /api/conversies/status` | bearer | Render-engine (LibreOffice gevonden + versie, of Gotenberg bereikbaar) en de aanwezige lettertypen; welke van DaxPro / DaxPro-Bold / DaxPro-Light / DaxPro-Medium ontbreken. `lettertypen.viaFontmappen` is `false` bij Gotenberg: de fontmappen van deze server gaan dan niet mee in de render en de kaart toont de families als "onbekend" in plaats van "ontbreekt". Voedt de statuskaart. |
 | `POST /api/conversies/afbeeldingen` | bearer | Welke gekoppelde afbeeldingen (`E:\…` in de .docx) heeft de beeldbank op de server? Body `{ namen }` (max. 50, alleen bestandsnamen), antwoord `{ gevonden, ontbrekend }`. Leest alleen de index, geen bestanden. De app vraagt de gebruiker alleen om de map als hier iets ontbreekt. |
-| `POST /api/conversies` | bearer | De conversie. Body `{ bestandsnaam, docxBase64, afbeeldingen? }` (eigen 35mb-parser vóór de generieke; `afbeeldingen` = `[{ bestandsnaam, base64 }]` uit de map van de gebruiker, max. 50), antwoord `{ bestandsnaam, aantalCheckboxen, pdfBase64, lettertypen: { gevraagd, inPdf, vervangen }, engine, duurMs, symbolenVervangen, ankersGeschat, vormenVerwijderd, afbeeldingenIngesloten, ontbrekendeAfbeeldingen }`. Fouten: `VALIDATION` 400/413, `CONVERSIE_ENGINE_ONBESCHIKBAAR` 503, `CONVERSIE_MISLUKT` 422, `CONVERSIE_TIMEOUT` 504, `CONVERSIE_DRUK` 503. |
+| `POST /api/conversies` | bearer | De conversie. Body `{ bestandsnaam, docxBase64, afbeeldingen? }` (eigen 35mb-parser vóór de generieke; `afbeeldingen` = `[{ bestandsnaam, base64 }]` uit de map van de gebruiker, max. 50), antwoord `{ bestandsnaam, aantalCheckboxen, pdfBase64, lettertypen: { gevraagd, inPdf, vervangen }, engine, duurMs, symbolenVervangen, ankersGeschat, vormenVerwijderd, afbeeldingenIngesloten, ontbrekendeAfbeeldingen, lettertypenOmgezet }`. Fouten: `VALIDATION` 400/413, `CONVERSIE_ENGINE_ONBESCHIKBAAR` 503, `CONVERSIE_MISLUKT` 422, `CONVERSIE_TIMEOUT` 504, `CONVERSIE_DRUK` 503. |
 | `GET /api/conversies` | `requireAdmin` | Het conversies-logboek (migratie 0003), server-side gepagineerd; metadata, nooit documentinhoud. |
 | `GET /api/audit-log` | `requireAdmin` | Server-side gepagineerd logboek (`logAction`/`logActionZachtjes`). |
 | `PUT /api/config/:key` | `requireAdmin` | Alleen `CONFIG_WHITELIST`-sleutels (fail-closed). |
@@ -308,6 +308,41 @@ De keten, per upload, in `backend/lib/`:
    (Regular/Bold/Italic/Bold Italic). Nagebootst met DejaVuSans-Bold (zelfde
    opbouw): vóór regular-terugval, erna de Bold-snit. Tests in
    `test/lettertypeNamen.test.js`.
+
+   **Zonder fontbestanden op de backend (Gotenberg) leert `lettertypeProbe.js`
+   de aliassen van de engine zelf.** Aanleiding (2026-09-24, 12:15): ook na PR
+   #10 bleef "Datum:"/"Telefoonnummer:" NotoSans; `/api/_health` op productie
+   toonde `engine: gotenberg`, `lettertypeBestanden: 1`, `viaFontmappen: false`
+   — er was niets om de alias uit af te leiden. Nu: `conversie.js` leest eerst
+   `gevraagdeLettertypen(docx)` (alleen de XML, geen transformaties), en elke
+   naam met een snit-achtervoegsel achter koppelteken/spatie (Bold, Italic,
+   Bold Italic, Oblique; níet Semibold/Kobold) die nog geen alias heeft, gaat in
+   een mini-.docx door dezelfde `docxNaarPdf`: per naam de naam zelf en de
+   basis + snit, plus per snit één **controleregel** in een onbestaand
+   lettertype (de terugval van de engine). Alias alleen als de naam terugvalt
+   en de basis in die familie rendert; is dat lettertype gelijk aan de
+   terugval, dan telt alleen een exacte basisnaam (zonder snit-achtervoegsel):
+   DejaVu Sans op een kale server is zélf de terugval en dan terecht een alias,
+   maar "Noto-Bold" (basis "Noto", terugval NotoSans-Bold) niet. pdfjs geeft per regel
+   het echte lettertype (`openMetPdfjs`, `getOperatorList()` eerst, dan
+   `commonObjs.get(fontName)` — níet per pagina uit `/Resources`: LibreOffice
+   zet alle lettertypen van het document op elke pagina). Daarna draait
+   `voorbewerkDocx` één keer met alle aliassen. Per worker gecachet, alleen bij
+   een duidelijke uitkomst (een regel die in de PDF ontbreekt → volgende keer
+   opnieuw); de probe deelt het tijdbudget van de hoofdrender
+   (`LIBREOFFICE_TIMEOUT_SECONDEN` blijft de bovengrens per conversie). Een
+   engine die weg is of hangt (RenderFout ONBESCHIKBAAR/TIMEOUT) wordt
+   doorgegeven als 503/504 — niet ingeslikt en dan door de hoofdrender herhaald;
+   elke andere probe-fout wordt gelogd en genegeerd. Ook bij `soffice` zinvol:
+   een lettertype dat systeembreed staat maar niet in `FONTS_DIR`, kent
+   LibreOffice wél en de bestandsafleiding niet. Het antwoord noemt de
+   omzettingen in `lettertypenOmgezet`. Gemeten lokaal: "DejaVuSans-Bold" →
+   DejaVuSans + vet; "Voorbeeld-BoldItalic" (basis onbekend) → terecht niets.
+   Tests in `test/lettertypeProbe.test.js` (pdf-lib-PDF met Helvetica /
+   Helvetica-Bold / Courier als controle) en de servertest "snitnaam" in
+   `test/conversie.test.js`, die vóór deze stap rood was
+   (`vervangen: ["DejaVuSans-Bold"]`). CI draait die keten echt: `tests.yml`
+   installeert `libreoffice-writer`.
 
    Tot slot sluit **`gekoppeldeAfbeeldingen.js`** afbeeldingen in die de .docx
    alleen koppelt (`<a:blip r:link=…>` naar `file:///E:\…\AFBEELDINGEN CPQ\…`).
@@ -527,7 +562,7 @@ cd frontend && npm run check:i18n
 - `backend/test/migraties.test.js` — idempotentie (drie keer draaien) en een
   gesloten nummerreeks.
 - `backend/test/docxVoorbewerking.test.js`, `verborgenVormen.test.js`,
-  `tekstvakStijl.test.js`, `lettertypeNamen.test.js`, `gekoppeldeAfbeeldingen.test.js`,
+  `tekstvakStijl.test.js`, `lettertypeNamen.test.js`, `lettertypeProbe.test.js`, `gekoppeldeAfbeeldingen.test.js`,
   `pdfCheckboxAnkers.test.js`, `lettertypen.test.js` — ports van de Java-tests uit `esign_motrac` plus de
   lettertype-laag; pure logica, geen DB of LibreOffice (de test-PDF wordt met
   pdf-lib + DejaVu Sans gebouwd).
@@ -536,9 +571,8 @@ cd frontend && npm run check:i18n
   machine, dan draait de hele render-keten (3 checkboxen incl. header, ankers
   in de tekstlaag, bestaand anker `\s2\` blijft); zo niet, dan controleert
   hij de 503 `CONVERSIE_ENGINE_ONBESCHIKBAAR` — bewust een tak en geen skip,
-  want CI eist `# skipped 0`. **De GitHub-runner heeft geen LibreOffice**, dus
-  CI test de render-keten nu niet; een `apt-get install libreoffice-writer`
-  in `tests.yml` (beschermd bestand) zou dat oplossen — voorleggen aan Mark.
+  want CI eist `# skipped 0`. Sinds de stap "LibreOffice Writer" in `tests.yml`
+  (`apt-get install libreoffice-writer`) draait CI de volledige render-keten.
 - CI (`tests.yml`) draait de backend-suite mét Postgres-service en faalt als
   er tests overgeslagen zijn; de typecheck-job bouwt de siblings en draait
   `tsc` + `motrac-ui-check --streng`.

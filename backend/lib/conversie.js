@@ -16,11 +16,12 @@
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { DocxOngeldig, voorbewerkDocx } from './docxVoorbewerking.js'
+import { DocxOngeldig, gevraagdeLettertypen, voorbewerkDocx } from './docxVoorbewerking.js'
 import { RenderFout, docxNaarPdf } from './docxNaarPdf.js'
 import { lettertypenInPdf, plaatsAnkers } from './pdfCheckboxAnkers.js'
 import { beschikbareLettertypen, lettertypeAliassen, vergelijkLettertypen } from './lettertypen.js'
 import { gekoppeldeAfbeeldingenInDocx, vulAanMetMeegestuurd, zoekAfbeeldingen } from './gekoppeldeAfbeeldingen.js'
+import { probeerLettertypeAliassen } from './lettertypeProbe.js'
 
 /** Zelfde grens als `converter.max-file-size-mb=25` in de PoC. */
 export const MAX_DOCX_BYTES = 25 * 1024 * 1024
@@ -44,6 +45,14 @@ export class ConversieFout extends Error {
     this.status = status
     this.detail = detail
   }
+}
+
+/** RenderFout → ConversieFout met de fleet-code en HTTP-status; andere fouten ongemoeid. */
+function alsConversieFout(e) {
+  if (!(e instanceof RenderFout)) return e
+  const status = e.soort === 'ONBESCHIKBAAR' ? 503 : e.soort === 'TIMEOUT' ? 504 : 422
+  const code = e.soort === 'ONBESCHIKBAAR' ? 'CONVERSIE_ENGINE_ONBESCHIKBAAR' : e.soort === 'TIMEOUT' ? 'CONVERSIE_TIMEOUT' : 'CONVERSIE_MISLUKT'
+  return new ConversieFout(code, e.message, { status, detail: e.detail })
 }
 
 // ---- Begrenzer -----------------------------------------------------------------
@@ -91,7 +100,8 @@ export function pdfNaam(docxNaam) {
  *   bestandsnaam: string, aantalCheckboxen: number, pdf: Uint8Array,
  *   lettertypen: { gevraagd: string[], inPdf: string[], vervangen: string[] },
  *   engine: string, duurMs: number, symbolenVervangen: number, ankersGeschat: number,
- *   vormenVerwijderd: number, afbeeldingenIngesloten: number, ontbrekendeAfbeeldingen: string[]
+ *   vormenVerwijderd: number, afbeeldingenIngesloten: number, ontbrekendeAfbeeldingen: string[],
+ *   lettertypenOmgezet: Record<string, number>
  * }>}
  */
 export async function converteerOfferte({ bestandsnaam, docx, meegestuurdeAfbeeldingen = {} }) {
@@ -117,9 +127,35 @@ export async function converteerOfferte({ bestandsnaam, docx, meegestuurdeAfbeel
       if (afbeeldingen.ontbrekend.length) {
         console.warn(`Gekoppelde afbeelding(en) niet in de afbeeldingenmap: ${afbeeldingen.ontbrekend.join(', ')}`)
       }
+      const fontBestanden = fonts.map((f) => f.pad)
+
+      // Lettertypenamen die LibreOffice niet als familie vindt: eerst uit de
+      // fontbestanden hier, dan — voor wat daar niet uit komt, bv. bij Gotenberg
+      // zonder fontbestanden op de backend — via een render-probe bij de engine
+      // zelf (één keer per worker, daarna uit de cache). De probe deelt de
+      // tijd van de hoofdrender: wat hij gebruikt, gaat van LIBREOFFICE_TIMEOUT
+      // af, zodat één conversie nooit langer duurt dan afgesproken.
+      let aliassen = lettertypeAliassen(fonts)
+      let renderBudgetMs = TIMEOUT_MS
+      try {
+        const probeStart = Date.now()
+        const probe = await probeerLettertypeAliassen({
+          gevraagd: gevraagdeLettertypen(docx),
+          bekendeAliassen: aliassen,
+          werkmap,
+          render: (docxPad) => docxNaarPdf({ docxPad, werkmap, fontBestanden, timeoutMs: Math.min(TIMEOUT_MS, 30_000) }),
+        })
+        renderBudgetMs = Math.max(10_000, TIMEOUT_MS - (Date.now() - probeStart))
+        if (probe.onderzocht.length) console.log(`Lettertype-probe gedaan voor: ${probe.onderzocht.join(', ')}${probe.onduidelijk.length ? ` (onduidelijk: ${probe.onduidelijk.join(', ')})` : ''}`)
+        aliassen = { ...aliassen, ...probe.aliassen }
+      } catch (e) {
+        if (e instanceof DocxOngeldig) throw new ConversieFout('VALIDATION', e.message, { status: 400 })
+        throw alsConversieFout(e)
+      }
+
       let voorbewerkt
       try {
-        voorbewerkt = voorbewerkDocx(docx, { lettertypeAliassen: lettertypeAliassen(fonts), afbeeldingen: afbeeldingen.gevonden })
+        voorbewerkt = voorbewerkDocx(docx, { lettertypeAliassen: aliassen, afbeeldingen: afbeeldingen.gevonden })
       } catch (e) {
         if (e instanceof DocxOngeldig) throw new ConversieFout('VALIDATION', e.message, { status: 400 })
         throw e
@@ -132,17 +168,11 @@ export async function converteerOfferte({ bestandsnaam, docx, meegestuurdeAfbeel
       for (const [naam, n] of Object.entries(voorbewerkt.lettertypenOmgezet)) {
         console.log(`Lettertypenaam omgezet: ${naam} (${n}×) → familie + snit, anders valt LibreOffice terug`)
       }
-      const fontBestanden = fonts.map((f) => f.pad)
       let render
       try {
-        render = await docxNaarPdf({ docxPad, werkmap, fontBestanden, timeoutMs: TIMEOUT_MS })
+        render = await docxNaarPdf({ docxPad, werkmap, fontBestanden, timeoutMs: renderBudgetMs })
       } catch (e) {
-        if (e instanceof RenderFout) {
-          const status = e.soort === 'ONBESCHIKBAAR' ? 503 : e.soort === 'TIMEOUT' ? 504 : 422
-          const code = e.soort === 'ONBESCHIKBAAR' ? 'CONVERSIE_ENGINE_ONBESCHIKBAAR' : e.soort === 'TIMEOUT' ? 'CONVERSIE_TIMEOUT' : 'CONVERSIE_MISLUKT'
-          throw new ConversieFout(code, e.message, { status, detail: e.detail })
-        }
-        throw e
+        throw alsConversieFout(e)
       }
 
       const gestempeld = await plaatsAnkers(render.pdf, { xOffset: X_OFFSET, yOffset: Y_OFFSET })
@@ -172,6 +202,7 @@ export async function converteerOfferte({ bestandsnaam, docx, meegestuurdeAfbeel
         vormenVerwijderd: voorbewerkt.vormenVerwijderd,
         afbeeldingenIngesloten: voorbewerkt.afbeeldingenIngesloten,
         ontbrekendeAfbeeldingen: afbeeldingen.ontbrekend,
+        lettertypenOmgezet: voorbewerkt.lettertypenOmgezet,
       }
     } finally {
       await rm(werkmap, { recursive: true, force: true })

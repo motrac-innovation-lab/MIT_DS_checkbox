@@ -38,6 +38,11 @@ export interface ConversieResultaat {
   ontbrekendeAfbeeldingen?: string[]
   /** Gekoppelde afbeeldingen die in de PDF zijn ingesloten (beeldbank + meegestuurd). */
   afbeeldingenIngesloten?: number
+  /**
+   * Lettertypenamen die de voorbewerking omzette omdat LibreOffice ze niet als
+   * familie vindt (bv. "DaxPro-Bold" → DaxPro + vet), met het aantal opmaakblokken.
+   */
+  lettertypenOmgezet?: Record<string, number>
 }
 
 /** Een gekoppelde afbeelding die de app uit de map van de gebruiker meestuurt. */

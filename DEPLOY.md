@@ -37,6 +37,9 @@ fontmappen van de backend niet mee — de DaxPro-bestanden horen dan in de
 Gotenberg-image. `/api/_health` meldt dat met `conversie.viaFontmappen: false`,
 en of de fonts daar echt staan blijkt pas uit `lettertypen.vervangen` in het
 antwoord van een conversie (moet `[]` zijn voor een DaxPro-offerte).
+Een naam als `DaxPro-Bold` (de PostScript-naam van de Bold-snit, geen familie)
+lost de backend bij route B op met een render-probe via Gotenberg (zie
+`lib/lettertypeProbe.js`); daar zijn geen fontbestanden op de backend voor nodig.
 
 **Beeldbank (gekoppelde afbeeldingen).** Offertes uit de configurator sluiten
 de truckfoto niet in maar koppelen hem aan de netwerkschijf

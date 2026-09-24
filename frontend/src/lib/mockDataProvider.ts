@@ -66,6 +66,7 @@ export class MockDataProvider implements DataProvider {
       ankersGeschat: 0,
       ontbrekendeAfbeeldingen: [],
       afbeeldingenIngesloten: afbeeldingen.length,
+      lettertypenOmgezet: {},
     }
   }
 

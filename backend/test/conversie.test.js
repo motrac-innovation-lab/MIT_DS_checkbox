@@ -95,6 +95,29 @@ function maakOfferteMetGekoppeldeFotos() {
   })
 }
 
+/**
+ * Een offerte die om "DejaVuSans-Bold" vraagt — de PostScript-naam van de
+ * Bold-snit, zoals de configurator "DaxPro-Bold" schrijft. Geen fontbestand op
+ * de server kan die alias leveren (backend/fonts heeft alleen de gewone snit,
+ * waarvan de PostScript-naam gelijk is aan de familie), dus alleen de
+ * render-probe kan hem vinden.
+ */
+function maakOfferteMetSnitnaam() {
+  const run = (font, tekst, vet) => `<w:r><w:rPr><w:rFonts w:ascii="${font}" w:hAnsi="${font}"/>${vet ? '<w:b/>' : ''}<w:sz w:val="24"/></w:rPr><w:t xml:space="preserve">${tekst}</w:t></w:r>`
+  return zipSync({
+    '[Content_Types].xml': strToU8('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+      + '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/>'
+      + '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>'),
+    '_rels/.rels': strToU8('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+      + '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>'),
+    'word/document.xml': strToU8(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document ${W}><w:body>`
+      + `<w:p>${run('DejaVuSans-Bold', 'Datum: 24-9-2026', false)}</w:p>`
+      + `<w:p>${run('DejaVu Sans', 'Gewone tekst ☐', false)}</w:p>`
+      + '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1417" w:right="1417" w:bottom="1417" w:left="1417" w:header="708" w:footer="708" w:gutter="0"/></w:sectPr>'
+      + '</w:body></w:document>'),
+  })
+}
+
 let backend
 let beeldbank
 before(async () => {
@@ -266,6 +289,25 @@ describe('offerte-conversie', { skip: slaOverZonderDb }, () => {
     assert.deepEqual(met.json.ontbrekendeAfbeeldingen, [])
     const pdf = Buffer.from(met.json.pdfBase64, 'base64')
     assert.ok(pdf.includes('/Subtype/Image') || pdf.includes('/Subtype /Image'), 'de PDF bevat de ingesloten afbeelding')
+  })
+
+  test('een snitnaam (DejaVuSans-Bold) wordt via de render-probe omgezet naar familie + vet — of de 503 zonder LibreOffice', async (t) => {
+    const lo = await detecteerLibreOffice()
+    const res = await backend.api('/api/conversies', { token: TOKEN_GEBRUIKER, methode: 'POST', body: { bestandsnaam: 'Snit.docx', docxBase64: b64(maakOfferteMetSnitnaam()) } })
+    if (!lo.gevonden) {
+      t.diagnostic('LibreOffice niet aanwezig — alleen de 503-tak getest')
+      assert.equal(res.status, 503)
+      return
+    }
+    assert.equal(res.status, 200, JSON.stringify(res.json).slice(0, 300))
+    // Vóór de probe stond "DejaVuSans-Bold" in `vervangen`: LibreOffice kent die
+    // naam niet als familie en viel terug. Nu is hij omgezet naar "DejaVuSans" +
+    // vet, dus gevraagd én in de PDF gevonden.
+    assert.deepEqual(res.json.lettertypenOmgezet, { 'DejaVuSans-Bold': 1 })
+    assert.deepEqual(res.json.lettertypen.gevraagd, ['DejaVu Sans', 'DejaVuSans'])
+    assert.deepEqual(res.json.lettertypen.vervangen, [])
+    assert.ok(res.json.lettertypen.inPdf.some((f) => /^DejaVuSans/.test(f)), JSON.stringify(res.json.lettertypen))
+    assert.equal(res.json.aantalCheckboxen, 1)
   })
 
   test('het conversies-logboek is beheerder-only en gepagineerd', async () => {

@@ -42,7 +42,8 @@ export function ankerNaam(n) {
   return `\\cb_${String(n).padStart(3, '0')}\\`
 }
 
-async function openMetPdfjs(pdfBytes) {
+/** Opent een PDF met pdf.js met de instellingen van deze app (ook voor lettertypeProbe.js). */
+export async function openMetPdfjs(pdfBytes) {
   return getDocument({
     data: pdfBytes.slice(), // pdf.js neemt de buffer over; de aanroeper houdt zijn eigen kopie
     useSystemFonts: false,
