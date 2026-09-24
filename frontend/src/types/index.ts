@@ -38,8 +38,6 @@ export interface ConversieResultaat {
   ontbrekendeAfbeeldingen?: string[]
   /** Gekoppelde afbeeldingen die in de PDF zijn ingesloten (beeldbank + meegestuurd). */
   afbeeldingenIngesloten?: number
-  /** Tabelcel-alinea's waarvan opvulspaties zijn vervangen door rechts uitlijnen. */
-  opvulAlineas?: number
   /**
    * Lettertypenamen die de voorbewerking omzette omdat LibreOffice ze niet als
    * familie vindt (bv. "DaxPro-Bold" → DaxPro + vet), met het aantal opmaakblokken.

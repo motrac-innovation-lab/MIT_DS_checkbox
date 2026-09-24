@@ -67,7 +67,6 @@ export class MockDataProvider implements DataProvider {
       ontbrekendeAfbeeldingen: [],
       afbeeldingenIngesloten: afbeeldingen.length,
       lettertypenOmgezet: {},
-      opvulAlineas: 0,
     }
   }
 

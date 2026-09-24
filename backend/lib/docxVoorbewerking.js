@@ -22,7 +22,6 @@ import { unzipSync, zipSync, strFromU8, strToU8 } from 'fflate'
 import { leesRelaties, verwijderBedekteVormen } from './verborgenVormen.js'
 import { standaardAlineastijl, standaardstijlInTekstvakken } from './tekstvakStijl.js'
 import { pasLettertypeAliassenToe } from './lettertypeNamen.js'
-import { opvulspatiesNaarRechts } from './opvulspaties.js'
 import { sluitGekoppeldeAfbeeldingenIn } from './gekoppeldeAfbeeldingen.js'
 
 /** Zip-onderdelen die getransformeerd worden; de rest passeert onaangeroerd. */
@@ -189,9 +188,7 @@ export function gevraagdeLettertypen(docxBytes) {
  *   deze server — namen die LibreOffice anders niet vindt (zie lettertypeNamen.js).
  *   `afbeeldingen`: zoekAfbeeldingen().gevonden — gekoppelde afbeeldingen die
  *   hier alsnog ingesloten worden (zie gekoppeldeAfbeeldingen.js).
- * @returns {{ docx: Uint8Array, vervangingen: number, vormenVerwijderd: number, tekstvakAlineas: number, opvulAlineas: number, lettertypenOmgezet: Record<string, number>, afbeeldingenIngesloten: number, lettertypen: string[] }}
- *   `opvulAlineas`: tabelcel-alinea's waarvan de opvulspaties zijn vervangen door
- *   rechts uitlijnen (zie opvulspaties.js).
+ * @returns {{ docx: Uint8Array, vervangingen: number, vormenVerwijderd: number, tekstvakAlineas: number, lettertypenOmgezet: Record<string, number>, afbeeldingenIngesloten: number, lettertypen: string[] }}
  *   `lettertypenOmgezet`: per omgezette naam het aantal opmaakblokken.
  *   `tekstvakAlineas`: alinea's in een tekstvak die de standaardstijl expliciet
  *   kregen, zodat LibreOffice er niet de docDefaults op zet (zie tekstvakStijl.js).
@@ -215,7 +212,6 @@ export function voorbewerkDocx(docxBytes, { lettertypeAliassen = {}, afbeeldinge
   let vervangingen = 0
   let vormenVerwijderd = 0
   let tekstvakAlineas = 0
-  let opvulAlineas = 0
   const lettertypenOmgezet = {}
   const aliassen = (xml) => {
     const r = pasLettertypeAliassenToe(xml, lettertypeAliassen)
@@ -235,9 +231,7 @@ export function voorbewerkDocx(docxBytes, { lettertypeAliassen = {}, afbeeldinge
       vormenVerwijderd += zichtbaar.verwijderd
       const gestyled = standaardstijlInTekstvakken(zichtbaar.xml, standaardStijl)
       tekstvakAlineas += gestyled.aangepast
-      const rechts = opvulspatiesNaarRechts(gestyled.xml)
-      opvulAlineas += rechts.aangepast
-      const resultaat = transformeerDocumentXml(aliassen(rechts.xml))
+      const resultaat = transformeerDocumentXml(aliassen(gestyled.xml))
       vervangingen += resultaat.vervangingen
       uitvoer[naam] = strToU8(resultaat.xml)
       const gebruikt = lettertypenInOnderdeel(resultaat.xml)
@@ -260,7 +254,7 @@ export function voorbewerkDocx(docxBytes, { lettertypeAliassen = {}, afbeeldinge
 
   const lettertypen = [...gevraagd].filter((f) => f && !SYMBOOL_LETTERTYPEN.test(f)).sort((a, b) => a.localeCompare(b, 'nl'))
 
-  return { docx: zipSync(uitvoer), vervangingen, vormenVerwijderd, tekstvakAlineas, opvulAlineas, lettertypenOmgezet, afbeeldingenIngesloten, lettertypen }
+  return { docx: zipSync(uitvoer), vervangingen, vormenVerwijderd, tekstvakAlineas, lettertypenOmgezet, afbeeldingenIngesloten, lettertypen }
 }
 
 export class DocxOngeldig extends Error {

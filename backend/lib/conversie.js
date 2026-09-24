@@ -100,7 +100,7 @@ export function pdfNaam(docxNaam) {
  *   bestandsnaam: string, aantalCheckboxen: number, pdf: Uint8Array,
  *   lettertypen: { gevraagd: string[], inPdf: string[], vervangen: string[] },
  *   engine: string, duurMs: number, symbolenVervangen: number, ankersGeschat: number,
- *   vormenVerwijderd: number, opvulAlineas: number, afbeeldingenIngesloten: number, ontbrekendeAfbeeldingen: string[],
+ *   vormenVerwijderd: number, afbeeldingenIngesloten: number, ontbrekendeAfbeeldingen: string[],
  *   lettertypenOmgezet: Record<string, number>
  * }>}
  */
@@ -160,7 +160,7 @@ export async function converteerOfferte({ bestandsnaam, docx, meegestuurdeAfbeel
         if (e instanceof DocxOngeldig) throw new ConversieFout('VALIDATION', e.message, { status: 400 })
         throw e
       }
-      console.log(`DOCX voorbewerkt: ${voorbewerkt.vervangingen} symbool-run(s) vervangen door ☐, ${voorbewerkt.vormenVerwijderd} bedekte vorm(en) verwijderd, ${voorbewerkt.tekstvakAlineas} tekstvak-alinea('s) op de standaardstijl gezet, ${voorbewerkt.opvulAlineas} opvulspatie-alinea('s) rechts uitgelijnd, ${voorbewerkt.afbeeldingenIngesloten} gekoppelde afbeelding(en) ingesloten`)
+      console.log(`DOCX voorbewerkt: ${voorbewerkt.vervangingen} symbool-run(s) vervangen door ☐, ${voorbewerkt.vormenVerwijderd} bedekte vorm(en) verwijderd, ${voorbewerkt.tekstvakAlineas} tekstvak-alinea('s) op de standaardstijl gezet, ${voorbewerkt.afbeeldingenIngesloten} gekoppelde afbeelding(en) ingesloten`)
 
       const docxPad = path.join(werkmap, 'voorbewerkt.docx')
       await writeFile(docxPad, voorbewerkt.docx)
@@ -200,7 +200,6 @@ export async function converteerOfferte({ bestandsnaam, docx, meegestuurdeAfbeel
         symbolenVervangen: voorbewerkt.vervangingen,
         ankersGeschat: gestempeld.ankers.filter((a) => !a.exact).length,
         vormenVerwijderd: voorbewerkt.vormenVerwijderd,
-        opvulAlineas: voorbewerkt.opvulAlineas,
         afbeeldingenIngesloten: voorbewerkt.afbeeldingenIngesloten,
         ontbrekendeAfbeeldingen: afbeeldingen.ontbrekend,
         lettertypenOmgezet: voorbewerkt.lettertypenOmgezet,
