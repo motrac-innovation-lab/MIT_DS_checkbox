@@ -3,7 +3,7 @@
 // inclusief een piepklein maar geldig PDF'je zodat de downloadknop echt iets
 // doet. Alleen de UI-paden testen, nooit als "het werkt"-bewijs gebruiken.
 import type { DataProvider } from './dataProvider'
-import type { ConversieRegel, ConversieResultaat, ConversieStatus, Pagina } from '../types'
+import type { BeeldbankAntwoord, ConversieRegel, ConversieResultaat, ConversieStatus, MeegestuurdeAfbeelding, Pagina } from '../types'
 
 const MINI_PDF = '%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n'
   + '3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 595 842]>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n'
@@ -46,7 +46,14 @@ export class MockDataProvider implements DataProvider {
     }
   }
 
-  async converteer(bestandsnaam: string): Promise<ConversieResultaat> {
+  // De mock-beeldbank is leeg, zodat de map-kiezer op de conversiepagina
+  // zonder backend te bekijken is.
+  async beeldbank(namen: string[]): Promise<BeeldbankAntwoord> {
+    await wacht(200)
+    return { gevonden: [], ontbrekend: namen }
+  }
+
+  async converteer(bestandsnaam: string, _docxBase64?: string, afbeeldingen: MeegestuurdeAfbeelding[] = []): Promise<ConversieResultaat> {
     await wacht(1500)
     return {
       bestandsnaam: bestandsnaam.replace(/\.docx$/i, '') + '.pdf',
@@ -57,6 +64,8 @@ export class MockDataProvider implements DataProvider {
       duurMs: 1487,
       symbolenVervangen: 12,
       ankersGeschat: 0,
+      ontbrekendeAfbeeldingen: [],
+      afbeeldingenIngesloten: afbeeldingen.length,
     }
   }
 

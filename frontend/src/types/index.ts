@@ -30,6 +30,27 @@ export interface ConversieResultaat {
   symbolenVervangen: number
   /** Ankers waarvan de positie geschat is (☐ midden in een tekstregel). */
   ankersGeschat: number
+  /**
+   * Afbeeldingen die de .docx alleen koppelt (bv. E:\… op een Motrac-pc) en die
+   * niet in de afbeeldingenmap van de server staan — in de PDF een lege plek.
+   * Optioneel: een oudere backend stuurt het veld niet mee.
+   */
+  ontbrekendeAfbeeldingen?: string[]
+  /** Gekoppelde afbeeldingen die in de PDF zijn ingesloten (beeldbank + meegestuurd). */
+  afbeeldingenIngesloten?: number
+}
+
+/** Een gekoppelde afbeelding die de app uit de map van de gebruiker meestuurt. */
+export interface MeegestuurdeAfbeelding {
+  /** De naam zoals de .docx hem koppelt, zonder pad. */
+  bestandsnaam: string
+  base64: string
+}
+
+/** Antwoord van POST /api/conversies/afbeeldingen: wat heeft de beeldbank op de server? */
+export interface BeeldbankAntwoord {
+  gevonden: string[]
+  ontbrekend: string[]
 }
 
 /** Antwoord van GET /api/conversies/status. */

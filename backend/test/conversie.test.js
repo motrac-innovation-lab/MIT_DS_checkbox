@@ -6,6 +6,9 @@
 // laten wegvallen. Welke tak liep staat in de testuitvoer.
 import assert from 'node:assert/strict'
 import test, { after, before, describe } from 'node:test'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
 import { strToU8, zipSync } from 'fflate'
 import { startBackend, TOKEN_ADMIN, TOKEN_GEBRUIKER } from './helpers/server.js'
 import { slaOverZonderDb } from './helpers/postgres.js'
@@ -61,9 +64,51 @@ function maakOfferteDocx() {
 
 const b64 = (bytes) => Buffer.from(bytes).toString('base64')
 
+// Een 1×1-PNG, en een offerte die twee afbeeldingen alleen KOPPELT aan de
+// netwerkschijf — zoals de configurator de truckfoto aanlevert.
+const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64')
+function maakOfferteMetGekoppeldeFotos() {
+  const img = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image'
+  const foto = (rId) => '<w:r><w:drawing><wp:inline><wp:extent cx="914400" cy="914400"/><wp:docPr id="1" name="Foto"/>'
+    + '<a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic>'
+    + '<pic:nvPicPr><pic:cNvPr id="1" name="Foto"/><pic:cNvPicPr/></pic:nvPicPr>'
+    + `<pic:blipFill><a:blip r:link="${rId}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>`
+    + '<pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="914400" cy="914400"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr>'
+    + '</pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>'
+  const ns = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"'
+    + ' xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"'
+    + ' xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"'
+  return zipSync({
+    '[Content_Types].xml': strToU8('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+      + '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/>'
+      + '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>'),
+    '_rels/.rels': strToU8('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+      + '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>'),
+    'word/_rels/document.xml.rels': strToU8('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+      + `<Relationship Id="rId5" Type="${img}" Target="file:///E:\\AFBEELDINGEN%20CPQ\\In-Beeldbank.png" TargetMode="External"/>`
+      + `<Relationship Id="rId6" Type="${img}" Target="file:///E:\\AFBEELDINGEN%20CPQ\\Van-De-Gebruiker.png" TargetMode="External"/>`
+      + '</Relationships>'),
+    'word/document.xml': strToU8(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document ${ns}><w:body>`
+      + `<w:p><w:r><w:t>Truck</w:t></w:r>${foto('rId5')}${foto('rId6')}</w:p>`
+      + '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1417" w:right="1417" w:bottom="1417" w:left="1417" w:header="708" w:footer="708" w:gutter="0"/></w:sectPr>'
+      + '</w:body></w:document>'),
+  })
+}
+
 let backend
-before(async () => { if (!slaOverZonderDb) backend = await startBackend() })
-after(async () => { if (backend) await backend.stop() })
+let beeldbank
+before(async () => {
+  if (slaOverZonderDb) return
+  // Een beeldbank met één van de twee gekoppelde foto's, in een submap en met
+  // andere hoofdletters dan in het document.
+  beeldbank = await mkdtemp(path.join(os.tmpdir(), 'ds-beeldbank-'))
+  await writeFile(path.join(beeldbank, 'in-beeldbank.PNG'), PNG)
+  backend = await startBackend({ extraEnv: { AFBEELDINGEN_DIR: beeldbank } })
+})
+after(async () => {
+  if (backend) await backend.stop()
+  if (beeldbank) await rm(beeldbank, { recursive: true, force: true })
+})
 
 describe('offerte-conversie', { skip: slaOverZonderDb }, () => {
   test('de statusroute beschrijft engine en lettertypen', async () => {
@@ -168,6 +213,59 @@ describe('offerte-conversie', { skip: slaOverZonderDb }, () => {
     assert.ok(tekst.includes('\\s2\\'), 'bestaand anker blijft staan')
     assert.equal([...tekst].filter((c) => c === '☐').length, 3, 'zichtbare vakjes blijven staan')
     assert.ok(!tekst.includes('<w:sym'))
+  })
+
+  test('de beeldbank-route zegt welke gekoppelde afbeeldingen de server heeft', async () => {
+    const res = await backend.api('/api/conversies/afbeeldingen', { token: TOKEN_GEBRUIKER, methode: 'POST', body: { namen: ['In-Beeldbank.png', 'Van-De-Gebruiker.png'] } })
+    assert.equal(res.status, 200)
+    assert.deepEqual(res.json, { gevonden: ['In-Beeldbank.png'], ontbrekend: ['Van-De-Gebruiker.png'] })
+  })
+
+  test('de beeldbank-route weigert paden, andere bestandstypen en een lege body; zonder token dicht', async () => {
+    for (const namen of [['../../etc/passwd'], ['E:\\map\\foto.png'], ['map/foto.png'], ['script.exe'], 'foto.png', undefined]) {
+      const res = await backend.api('/api/conversies/afbeeldingen', { token: TOKEN_GEBRUIKER, methode: 'POST', body: { namen } })
+      assert.equal(res.status, 400, JSON.stringify(namen))
+      assert.equal(res.json.error.code, 'VALIDATION')
+    }
+    const dicht = await backend.api('/api/conversies/afbeeldingen', { methode: 'POST', body: { namen: ['foto.png'] } })
+    assert.equal(dicht.status, 401)
+  })
+
+  test('een meegestuurde afbeelding met een pad of ongeldige inhoud is een 400', async () => {
+    for (const afbeeldingen of [[{ bestandsnaam: '../x.png', base64: b64(PNG) }], [{ bestandsnaam: 'x.png', base64: '!!' }], [{ bestandsnaam: 'x.png', base64: '' }], 'x']) {
+      const res = await backend.api('/api/conversies', { token: TOKEN_GEBRUIKER, methode: 'POST', body: { bestandsnaam: 'offerte.docx', docxBase64: b64(maakOfferteDocx()), afbeeldingen } })
+      assert.equal(res.status, 400, JSON.stringify(afbeeldingen))
+      assert.equal(res.json.error.code, 'VALIDATION')
+    }
+  })
+
+  test('gekoppelde foto\'s: beeldbank eerst, dan wat de gebruiker meestuurt — of de 503 zonder LibreOffice', async (t) => {
+    const lo = await detecteerLibreOffice()
+    const zonder = await backend.api('/api/conversies', { token: TOKEN_GEBRUIKER, methode: 'POST', body: { bestandsnaam: 'Fotos.docx', docxBase64: b64(maakOfferteMetGekoppeldeFotos()) } })
+    if (!lo.gevonden) {
+      t.diagnostic('LibreOffice niet aanwezig — alleen de 503-tak getest')
+      assert.equal(zonder.status, 503)
+      return
+    }
+    assert.equal(zonder.status, 200, JSON.stringify(zonder.json).slice(0, 300))
+    assert.equal(zonder.json.afbeeldingenIngesloten, 1, 'de foto uit de beeldbank')
+    assert.deepEqual(zonder.json.ontbrekendeAfbeeldingen, ['Van-De-Gebruiker.png'])
+
+    const met = await backend.api('/api/conversies', {
+      token: TOKEN_GEBRUIKER,
+      methode: 'POST',
+      body: {
+        bestandsnaam: 'Fotos.docx',
+        docxBase64: b64(maakOfferteMetGekoppeldeFotos()),
+        // Ook een meegestuurde versie van de beeldbankfoto: die telt niet, de beeldbank blijft eerste keus.
+        afbeeldingen: [{ bestandsnaam: 'van-de-gebruiker.png', base64: b64(PNG) }, { bestandsnaam: 'In-Beeldbank.png', base64: b64(PNG) }],
+      },
+    })
+    assert.equal(met.status, 200, JSON.stringify(met.json).slice(0, 300))
+    assert.equal(met.json.afbeeldingenIngesloten, 2)
+    assert.deepEqual(met.json.ontbrekendeAfbeeldingen, [])
+    const pdf = Buffer.from(met.json.pdfBase64, 'base64')
+    assert.ok(pdf.includes('/Subtype/Image') || pdf.includes('/Subtype /Image'), 'de PDF bevat de ingesloten afbeelding')
   })
 
   test('het conversies-logboek is beheerder-only en gepagineerd', async () => {
