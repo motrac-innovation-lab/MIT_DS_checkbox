@@ -568,6 +568,8 @@ app.post('/api/conversies', ah(async (req, res) => {
       symbolenVervangen: resultaat.symbolenVervangen,
       ankersGeschat: resultaat.ankersGeschat,
       vormenVerwijderd: resultaat.vormenVerwijderd,
+      // Tabelcel-alinea's waarvan opvulspaties zijn vervangen door rechts uitlijnen.
+      opvulAlineas: resultaat.opvulAlineas,
       afbeeldingenIngesloten: resultaat.afbeeldingenIngesloten,
       ontbrekendeAfbeeldingen: resultaat.ontbrekendeAfbeeldingen,
       // Namen die de voorbewerking omzette omdat LibreOffice ze niet als familie

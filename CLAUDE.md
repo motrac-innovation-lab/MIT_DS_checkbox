@@ -231,7 +231,7 @@ echte grens, een `isAdmin`-check in de UI alleen cosmetiek.
 | `POST /api/feedback` | bearer | Doorgifte van de FeedbackWidget naar Motrac-beheer; eigen 12mb-body-limiet vanwege screenshots. |
 | `GET /api/conversies/status` | bearer | Render-engine (LibreOffice gevonden + versie, of Gotenberg bereikbaar) en de aanwezige lettertypen; welke van DaxPro / DaxPro-Bold / DaxPro-Light / DaxPro-Medium ontbreken. `lettertypen.viaFontmappen` is `false` bij Gotenberg: de fontmappen van deze server gaan dan niet mee in de render en de kaart toont de families als "onbekend" in plaats van "ontbreekt". Voedt de statuskaart. |
 | `POST /api/conversies/afbeeldingen` | bearer | Welke gekoppelde afbeeldingen (`E:\…` in de .docx) heeft de beeldbank op de server? Body `{ namen }` (max. 50, alleen bestandsnamen), antwoord `{ gevonden, ontbrekend }`. Leest alleen de index, geen bestanden. De app vraagt de gebruiker alleen om de map als hier iets ontbreekt. |
-| `POST /api/conversies` | bearer | De conversie. Body `{ bestandsnaam, docxBase64, afbeeldingen? }` (eigen 35mb-parser vóór de generieke; `afbeeldingen` = `[{ bestandsnaam, base64 }]` uit de map van de gebruiker, max. 50), antwoord `{ bestandsnaam, aantalCheckboxen, pdfBase64, lettertypen: { gevraagd, inPdf, vervangen }, engine, duurMs, symbolenVervangen, ankersGeschat, vormenVerwijderd, afbeeldingenIngesloten, ontbrekendeAfbeeldingen, lettertypenOmgezet }`. Fouten: `VALIDATION` 400/413, `CONVERSIE_ENGINE_ONBESCHIKBAAR` 503, `CONVERSIE_MISLUKT` 422, `CONVERSIE_TIMEOUT` 504, `CONVERSIE_DRUK` 503. |
+| `POST /api/conversies` | bearer | De conversie. Body `{ bestandsnaam, docxBase64, afbeeldingen? }` (eigen 35mb-parser vóór de generieke; `afbeeldingen` = `[{ bestandsnaam, base64 }]` uit de map van de gebruiker, max. 50), antwoord `{ bestandsnaam, aantalCheckboxen, pdfBase64, lettertypen: { gevraagd, inPdf, vervangen }, engine, duurMs, symbolenVervangen, ankersGeschat, vormenVerwijderd, opvulAlineas, afbeeldingenIngesloten, ontbrekendeAfbeeldingen, lettertypenOmgezet }`. Fouten: `VALIDATION` 400/413, `CONVERSIE_ENGINE_ONBESCHIKBAAR` 503, `CONVERSIE_MISLUKT` 422, `CONVERSIE_TIMEOUT` 504, `CONVERSIE_DRUK` 503. |
 | `GET /api/conversies` | `requireAdmin` | Het conversies-logboek (migratie 0003), server-side gepagineerd; metadata, nooit documentinhoud. |
 | `GET /api/audit-log` | `requireAdmin` | Server-side gepagineerd logboek (`logAction`/`logActionZachtjes`). |
 | `PUT /api/config/:key` | `requireAdmin` | Alleen `CONFIG_WHITELIST`-sleutels (fail-closed). |
@@ -292,6 +292,32 @@ De keten, per upload, in `backend/lib/`:
    "MyLinde" en "Nacalculatie" op de leveringspagina's). Dat hoort in het
    sjabloon opgelost te worden, niet hier: de converter volgt Word. Tests in
    `test/tekstvakStijl.test.js`.
+
+   Dan **`opvulspaties.js`**: een tabelcel-alinea die alleen uit witruimte, een
+   reeks van ≥ 20 spaties en één korte tekst bestaat, verliest de spaties en
+   wordt rechts uitgelijnd. Aanleiding (2026-09-24, pagina 4): "Netto prijs
+   per truck" zet "€ 86.519,99" rechts met 143 spaties in een uitgevulde,
+   vette alinea; met de glyph-breedtes uit de PDF (DaxPro-Light spatie 0,280
+   em) is dat 402,8 pt in een cel met 386,1 pt tekstruimte, dus LibreOffice
+   brak af en het bedrag sprong naar de volgende regel. Of het in Word past
+   hangt van tienden van punten af — opvulspaties zijn een kwetsbare manier om
+   iets rechts te zetten; rechts uitlijnen is wat de auteur bedoelt en komt
+   hooguit enkele punten van Word's positie af. Bewust smal: alleen alinea's
+   rechtstreeks in een tabelcel (geneste tabellen ook, tekstvakken in een cel
+   niet — daar bepaalt het tekstvak de breedte), vóór de spaties alleen
+   witruimte (tabs en spaties, die mee verdwijnen; nooit een run met een
+   voetnoot- of opmerkingsverwijzing), erna één tekst van ≤ 60 tekens zonder
+   tab of tweede gat van ≥ 3 spaties (ook als Word hem over runs splitste; een
+   hyperlink eromheen mag), en niets in de alinea dat zelf lay-out maakt
+   (tekening, symbool, veld, br/cr, positietab, sdt, wijzigingen). `w:jc` komt
+   in de levende `pPr` op de schemaplek, nooit in een run of in `pPrChange`
+   (allemaal bevindingen uit de review van 2026-09-24).
+   Raakt in deze offerte twee alinea's: het bedrag op pagina 4 en "download
+   brochure [PDF]" achter 82 spaties op pagina 3, waar "[PDF]" op productie ook
+   al naar de volgende regel viel. Tests in `test/opvulspaties.test.js`.
+   Dit is een bewuste afwijking van "de converter volgt Word": niet de
+   layout-methode maar de bedoeling wordt gevolgd, omdat de methode zelf
+   renderer-afhankelijk is.
 
    En **`lettertypeNamen.js`** zet lettertypenamen om die LibreOffice niet als
    familie vindt, op basis van de fontbestanden van deze server
@@ -562,7 +588,7 @@ cd frontend && npm run check:i18n
 - `backend/test/migraties.test.js` — idempotentie (drie keer draaien) en een
   gesloten nummerreeks.
 - `backend/test/docxVoorbewerking.test.js`, `verborgenVormen.test.js`,
-  `tekstvakStijl.test.js`, `lettertypeNamen.test.js`, `lettertypeProbe.test.js`, `gekoppeldeAfbeeldingen.test.js`,
+  `tekstvakStijl.test.js`, `opvulspaties.test.js`, `lettertypeNamen.test.js`, `lettertypeProbe.test.js`, `gekoppeldeAfbeeldingen.test.js`,
   `pdfCheckboxAnkers.test.js`, `lettertypen.test.js` — ports van de Java-tests uit `esign_motrac` plus de
   lettertype-laag; pure logica, geen DB of LibreOffice (de test-PDF wordt met
   pdf-lib + DejaVu Sans gebouwd).
