@@ -1,6 +1,6 @@
 // Orkestratie van één offerte-conversie — de port van `UploadController.java`
 // uit `esign_motrac`, zonder Spring: bestand controleren → DOCX voorbewerken
-// → renderen naar PDF → ankers plaatsen → lettertypen vergelijken → opruimen.
+// (incl. in Word onzichtbare, bedekte vormen weghalen) → renderen naar PDF → ankers plaatsen → lettertypen vergelijken → opruimen.
 //
 // Elke conversie krijgt een eigen tijdelijke werkmap onder os.tmpdir() die in
 // `finally` verdwijnt: offertes zijn commercieel materiaal en blijven nergens
@@ -87,7 +87,8 @@ export function pdfNaam(docxNaam) {
  * @returns {Promise<{
  *   bestandsnaam: string, aantalCheckboxen: number, pdf: Uint8Array,
  *   lettertypen: { gevraagd: string[], inPdf: string[], vervangen: string[] },
- *   engine: string, duurMs: number, symbolenVervangen: number, ankersGeschat: number
+ *   engine: string, duurMs: number, symbolenVervangen: number, ankersGeschat: number,
+ *   vormenVerwijderd: number
  * }>}
  */
 export async function converteerOfferte({ bestandsnaam, docx }) {
@@ -110,7 +111,7 @@ export async function converteerOfferte({ bestandsnaam, docx }) {
         if (e instanceof DocxOngeldig) throw new ConversieFout('VALIDATION', e.message, { status: 400 })
         throw e
       }
-      console.log(`DOCX voorbewerkt: ${voorbewerkt.vervangingen} symbool-run(s) vervangen door ☐`)
+      console.log(`DOCX voorbewerkt: ${voorbewerkt.vervangingen} symbool-run(s) vervangen door ☐, ${voorbewerkt.vormenVerwijderd} bedekte vorm(en) verwijderd, ${voorbewerkt.tekstvakAlineas} tekstvak-alinea('s) op de standaardstijl gezet`)
 
       const docxPad = path.join(werkmap, 'voorbewerkt.docx')
       await writeFile(docxPad, voorbewerkt.docx)
@@ -152,6 +153,7 @@ export async function converteerOfferte({ bestandsnaam, docx }) {
         duurMs,
         symbolenVervangen: voorbewerkt.vervangingen,
         ankersGeschat: gestempeld.ankers.filter((a) => !a.exact).length,
+        vormenVerwijderd: voorbewerkt.vormenVerwijderd,
       }
     } finally {
       await rm(werkmap, { recursive: true, force: true })

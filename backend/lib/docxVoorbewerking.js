@@ -19,6 +19,8 @@
 // DaxPro / DaxPro-Bold / DaxPro-Light / DaxPro-Medium moeten in de PDF
 // behouden blijven).
 import { unzipSync, zipSync, strFromU8, strToU8 } from 'fflate'
+import { leesRelaties, verwijderBedekteVormen } from './verborgenVormen.js'
+import { standaardAlineastijl, standaardstijlInTekstvakken } from './tekstvakStijl.js'
 
 /** Zip-onderdelen die getransformeerd worden; de rest passeert onaangeroerd. */
 const WORD_PART = /^word\/(?:document|header\d*|footer\d*)\.xml$/
@@ -133,9 +135,19 @@ function lettertypenUitStijlen(stylesXml, gebruikteStijlen) {
   return fonts
 }
 
+/** `word/document.xml` → `word/_rels/document.xml.rels`. */
+function relsPad(naam) {
+  const i = naam.lastIndexOf('/')
+  return `${naam.slice(0, i)}/_rels/${naam.slice(i + 1)}.rels`
+}
+
 /**
  * Voert de voorbewerking uit op de ruwe DOCX-bytes.
- * @returns {{ docx: Uint8Array, vervangingen: number, lettertypen: string[] }}
+ * @returns {{ docx: Uint8Array, vervangingen: number, vormenVerwijderd: number, tekstvakAlineas: number, lettertypen: string[] }}
+ *   `tekstvakAlineas`: alinea's in een tekstvak die de standaardstijl expliciet
+ *   kregen, zodat LibreOffice er niet de docDefaults op zet (zie tekstvakStijl.js).
+ *   `vormenVerwijderd`: vormen die in Word volledig onder een dekkende vorm
+ *   liggen en daarom uit het document zijn gehaald (zie verborgenVormen.js).
  *   `lettertypen`: de door het document gevraagde lettertypen, gesorteerd en
  *   zonder symboollettertypen.
  */
@@ -152,6 +164,9 @@ export function voorbewerkDocx(docxBytes) {
 
   const uitvoer = {}
   let vervangingen = 0
+  let vormenVerwijderd = 0
+  let tekstvakAlineas = 0
+  const standaardStijl = onderdelen['word/styles.xml'] ? standaardAlineastijl(strFromU8(onderdelen['word/styles.xml'])) : null
   const gevraagd = new Set()
   const stijlen = new Set()
 
@@ -159,8 +174,12 @@ export function voorbewerkDocx(docxBytes) {
     // Mapvermeldingen ("word/") zijn geen bestanden; een zip zonder ze is even geldig.
     if (naam.endsWith('/')) continue
     if (isTransformeerbaarWordPart(naam)) {
-      const xml = strFromU8(bytes)
-      const resultaat = transformeerDocumentXml(xml)
+      const rels = onderdelen[relsPad(naam)]
+      const zichtbaar = verwijderBedekteVormen(strFromU8(bytes), leesRelaties(rels ? strFromU8(rels) : ''))
+      vormenVerwijderd += zichtbaar.verwijderd
+      const gestyled = standaardstijlInTekstvakken(zichtbaar.xml, standaardStijl)
+      tekstvakAlineas += gestyled.aangepast
+      const resultaat = transformeerDocumentXml(gestyled.xml)
       vervangingen += resultaat.vervangingen
       uitvoer[naam] = strToU8(resultaat.xml)
       const gebruikt = lettertypenInOnderdeel(resultaat.xml)
@@ -177,7 +196,7 @@ export function voorbewerkDocx(docxBytes) {
 
   const lettertypen = [...gevraagd].filter((f) => f && !SYMBOOL_LETTERTYPEN.test(f)).sort((a, b) => a.localeCompare(b, 'nl'))
 
-  return { docx: zipSync(uitvoer), vervangingen, lettertypen }
+  return { docx: zipSync(uitvoer), vervangingen, vormenVerwijderd, tekstvakAlineas, lettertypen }
 }
 
 export class DocxOngeldig extends Error {

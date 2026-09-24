@@ -532,6 +532,7 @@ app.post('/api/conversies', ah(async (req, res) => {
       duurMs: resultaat.duurMs,
       symbolenVervangen: resultaat.symbolenVervangen,
       ankersGeschat: resultaat.ankersGeschat,
+      vormenVerwijderd: resultaat.vormenVerwijderd,
     })
   } catch (e) {
     if (!(e instanceof ConversieFout)) throw e

@@ -230,7 +230,7 @@ echte grens, een `isAdmin`-check in de UI alleen cosmetiek.
 | `GET /api/data` | bearer | Bootstrap: `config` (alleen `CONFIG_WHITELIST`, nu leeg). |
 | `POST /api/feedback` | bearer | Doorgifte van de FeedbackWidget naar Motrac-beheer; eigen 12mb-body-limiet vanwege screenshots. |
 | `GET /api/conversies/status` | bearer | Render-engine (LibreOffice gevonden + versie, of Gotenberg bereikbaar) en de aanwezige lettertypen; welke van DaxPro / DaxPro-Bold / DaxPro-Light / DaxPro-Medium ontbreken. `lettertypen.viaFontmappen` is `false` bij Gotenberg: de fontmappen van deze server gaan dan niet mee in de render en de kaart toont de families als "onbekend" in plaats van "ontbreekt". Voedt de statuskaart. |
-| `POST /api/conversies` | bearer | De conversie. Body `{ bestandsnaam, docxBase64 }` (eigen 35mb-parser vóór de generieke), antwoord `{ bestandsnaam, aantalCheckboxen, pdfBase64, lettertypen: { gevraagd, inPdf, vervangen }, engine, duurMs, symbolenVervangen, ankersGeschat }`. Fouten: `VALIDATION` 400/413, `CONVERSIE_ENGINE_ONBESCHIKBAAR` 503, `CONVERSIE_MISLUKT` 422, `CONVERSIE_TIMEOUT` 504, `CONVERSIE_DRUK` 503. |
+| `POST /api/conversies` | bearer | De conversie. Body `{ bestandsnaam, docxBase64 }` (eigen 35mb-parser vóór de generieke), antwoord `{ bestandsnaam, aantalCheckboxen, pdfBase64, lettertypen: { gevraagd, inPdf, vervangen }, engine, duurMs, symbolenVervangen, ankersGeschat, vormenVerwijderd }`. Fouten: `VALIDATION` 400/413, `CONVERSIE_ENGINE_ONBESCHIKBAAR` 503, `CONVERSIE_MISLUKT` 422, `CONVERSIE_TIMEOUT` 504, `CONVERSIE_DRUK` 503. |
 | `GET /api/conversies` | `requireAdmin` | Het conversies-logboek (migratie 0003), server-side gepagineerd; metadata, nooit documentinhoud. |
 | `GET /api/audit-log` | `requireAdmin` | Server-side gepagineerd logboek (`logAction`/`logActionZachtjes`). |
 | `PUT /api/config/:key` | `requireAdmin` | Alleen `CONFIG_WHITELIST`-sleutels (fail-closed). |
@@ -264,6 +264,33 @@ De keten, per upload, in `backend/lib/`:
    Calibri-Bold uit `w:cs`, Times New Roman uit `w:eastAsia` en uit 62
    alineamarkeringen). Zie de regressietests in
    `test/docxVoorbewerking.test.js`.
+
+   Vóór die vervanging haalt **`verborgenVormen.js`** de vormen weg die in
+   Word volledig onder een dekkende vorm met hogere z-volgorde liggen.
+   LibreOffice houdt die stapelvolgorde bij tekstvakken niet aan en tekent hun
+   tekst bovenop andere achtergrondvormen (LO 24.2 én 26.8). Aanleiding
+   (2026-09-24, `test_nieuwe_opmaak_26.docx`): onder de foto's en rode vlakken
+   van de Oplossingen-pagina lag een oud technisch gegevensblad ("Truck data"
+   / "Warehouse data", 136 vormen) dat in de PDF dwars over de pagina stond.
+   Bewust smal: alleen ankers in dezelfde alinea, positie t.o.v. de pagina in
+   beide richtingen, elk meetpunt (12×12) onder een dekkend deel — JPEG-foto
+   of effen vulling zonder alfa, als rechthoek of recht pad. PNG, rotatie,
+   gespiegelde paden en bogen tellen niet als dekkend. Weg gaat de hele
+   `mc:AlternateContent` (anders valt LO terug op de VML in `mc:Fallback`).
+   Het aantal komt terug als `vormenVerwijderd`. Tests in
+   `test/verborgenVormen.test.js`.
+
+   Daarna zet **`tekstvakStijl.js`** op elke alinea zonder `<w:pStyle>` binnen
+   een `<w:txbxContent>` expliciet de standaard-alineastijl (in de sjablonen
+   `Standaard` = DaxPro-Light). Word doet dat impliciet; LibreOffice geeft zo'n
+   alinea de stijl "Frame contents", die van de docDefaults erft — en daar
+   staat het thema-lettertype `minorHAnsi` = **Calibri**. Gemeten 2026-09-24
+   (FODT-export): Calibri-tekst van 1.399 naar 715 tekens. De rest is ÉCHT
+   Calibri, ook in Word: alinea's in stijl `Geenafstand` ("Geen afstand"),
+   die niet op `Standaard` is gebaseerd en zelf geen lettertype zet (o.a.
+   "MyLinde" en "Nacalculatie" op de leveringspagina's). Dat hoort in het
+   sjabloon opgelost te worden, niet hier: de converter volgt Word. Tests in
+   `test/tekstvakStijl.test.js`.
 2. **`docxNaarPdf.js`** (port van `DocxToPdfService.java`) — LibreOffice
    headless met per conversie een **eigen tijdelijk gebruikersprofiel**
    (`-env:UserInstallation`; anders weigert LO een tweede instantie en botsen
@@ -452,8 +479,8 @@ cd frontend && npm run check:i18n
   connectiestring lekt niet.
 - `backend/test/migraties.test.js` — idempotentie (drie keer draaien) en een
   gesloten nummerreeks.
-- `backend/test/docxVoorbewerking.test.js`, `pdfCheckboxAnkers.test.js`,
-  `lettertypen.test.js` — ports van de Java-tests uit `esign_motrac` plus de
+- `backend/test/docxVoorbewerking.test.js`, `verborgenVormen.test.js`,
+  `tekstvakStijl.test.js`, `pdfCheckboxAnkers.test.js`, `lettertypen.test.js` — ports van de Java-tests uit `esign_motrac` plus de
   lettertype-laag; pure logica, geen DB of LibreOffice (de test-PDF wordt met
   pdf-lib + DejaVu Sans gebouwd).
 - `backend/test/conversie.test.js` — de conversie over de echte server:
