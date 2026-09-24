@@ -44,7 +44,7 @@ export function fontMappen() {
  * Alle lettertypebestanden uit de fontmappen, mét de familienamen uit hun
  * name-tabel, zodat de status "DaxPro-Light aanwezig" op de familienaam kan
  * rusten en niet op een toevallige bestandsnaam.
- * @returns {Promise<{ bestand: string, pad: string, families: string[], postscript: string[] }[]>}
+ * @returns {Promise<{ bestand: string, pad: string, families: string[], postscript: string[], snitten: object[] }[]>}
  */
 export async function beschikbareLettertypen() {
   const gevonden = []
@@ -60,8 +60,8 @@ export async function beschikbareLettertypen() {
       const pad = path.join(map, naam)
       try {
         if (!(await stat(pad)).isFile()) continue
-        const { families, postscript } = leesNamen(await readFile(pad))
-        gevonden.push({ bestand: naam, pad, families, postscript })
+        const { families, postscript, snitten } = leesNamen(await readFile(pad))
+        gevonden.push({ bestand: naam, pad, families, postscript, snitten })
       } catch (e) {
         // Een kapot fontbestand mag de conversie niet tegenhouden; wel melden.
         console.warn(`Lettertype ${pad} is niet leesbaar en wordt overgeslagen:`, e?.message ?? e)
@@ -80,16 +80,25 @@ export function leesNamen(buffer) {
   const data = Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer)
   const families = new Set()
   const postscript = new Set()
+  const snitten = []
   const tag = data.readUInt32BE(0)
   // TrueType Collection: elk lettertype apart nalopen.
   const offsets = tag === 0x74746366 /* 'ttcf' */
     ? Array.from({ length: data.readUInt32BE(8) }, (_, i) => data.readUInt32BE(12 + i * 4))
     : [0]
-  for (const basis of offsets) leesNameTabel(data, basis, families, postscript)
-  return { families: [...families], postscript: [...postscript] }
+  for (const basis of offsets) {
+    const snit = {}
+    leesNameTabel(data, basis, families, postscript, snit)
+    snitten.push(snit)
+  }
+  return { families: [...families], postscript: [...postscript], snitten }
 }
 
-function leesNameTabel(data, basis, families, postscript) {
+/**
+ * @param {object} snit krijgt per lettertype de eerste waarde van nameID 1
+ *   (familie), 2 (stijl), 6 (PostScript), 16/17 (typografische familie/stijl)
+ */
+function leesNameTabel(data, basis, families, postscript, snit = {}) {
   const aantalTabellen = data.readUInt16BE(basis + 4)
   for (let i = 0; i < aantalTabellen; i++) {
     const record = basis + 12 + i * 16
@@ -101,7 +110,7 @@ function leesNameTabel(data, basis, families, postscript) {
       const r = tabel + 6 + j * 12
       const platform = data.readUInt16BE(r)
       const nameId = data.readUInt16BE(r + 6)
-      if (nameId !== 1 && nameId !== 16 && nameId !== 6) continue
+      if (![1, 2, 6, 16, 17].includes(nameId)) continue
       const lengte = data.readUInt16BE(r + 8)
       const begin = stringsOffset + data.readUInt16BE(r + 10)
       if (begin + lengte > data.length) continue
@@ -111,8 +120,9 @@ function leesNameTabel(data, basis, families, postscript) {
         : utf16be(data.subarray(begin, begin + lengte))
       const schoon = tekst.replace(/\0/g, '').trim()
       if (!schoon) continue
+      snit[nameId] ??= schoon
       if (nameId === 6) postscript.add(schoon)
-      else families.add(schoon)
+      else if (nameId === 1 || nameId === 16) families.add(schoon)
     }
     return
   }
@@ -171,3 +181,53 @@ export function ontbrekendeVereisteLettertypen(bestanden) {
     return !aanwezig.some((a) => a === n)
   })
 }
+
+// ---- Namen die LibreOffice niet vindt ------------------------------------------
+
+/**
+ * Zoals fontconfig (en dus LibreOffice) een familienaam vergelijkt:
+ * hoofdletterongevoelig en zonder spaties — maar een koppelteken telt wél mee.
+ * "DaxPro Bold" vindt dus "DaxPro-Bold" niet.
+ */
+const alsFontconfigNaam = (naam) => String(naam ?? '').toLowerCase().replace(/\s+/g, '')
+
+/**
+ * Welke lettertypenamen uit een document LibreOffice NIET als familie vindt,
+ * terwijl het bestand er wél is — en waar ze dan naartoe moeten.
+ *
+ * Aanleiding (2026-09-24, "test_nieuwe_opmaak_26"): het document vraagt op
+ * "Datum:", "Offerte:", "Onze referentie:", "Telefoonnummer:" en "John
+ * Mestrom" om `DaxPro-Bold`. Word op Windows kent die naam; het
+ * DaxPro-Bold-bestand heet voor fontconfig echter familie "DaxPro", stijl
+ * Bold — "DaxPro-Bold" is alleen zijn PostScript-naam. LibreOffice vond dus
+ * niets en viel terug op NotoSans (breder, dus verspringende tekst), terwijl
+ * de statuskaart "DaxPro-Bold aanwezig" meldde (die kijkt ook naar de
+ * PostScript-naam). `DaxPro` + vet op dezelfde offerte rendert wél in het
+ * DaxPro-Bold-bestand.
+ *
+ * Alleen PostScript-namen die géén familienaam zijn, en alleen snitten die in
+ * DOCX uit te drukken zijn (Regular/Bold/Italic/Bold Italic): een "Light"
+ * onder familie "DaxPro" kan een run niet vragen, dus die blijft staan.
+ *
+ * @param {{ families: string[], snitten?: object[] }[]} bestanden beschikbareLettertypen()
+ * @returns {Record<string, { familie: string, vet: boolean, cursief: boolean }>}
+ *   sleutel: de naam zoals fontconfig hem vergelijkt (alsFontconfigNaam)
+ */
+export function lettertypeAliassen(bestanden) {
+  const families = new Set(bestanden.flatMap((b) => b.families).map(alsFontconfigNaam))
+  const aliassen = {}
+  for (const b of bestanden) {
+    for (const snit of b.snitten ?? []) {
+      const ps = snit[6]
+      if (!ps || families.has(alsFontconfigNaam(ps))) continue
+      const familie = snit[16] ?? snit[1]
+      const stijl = String((snit[16] ? snit[17] : snit[2]) ?? 'Regular').toLowerCase().replace(/[\s-]+/g, ' ').trim()
+      const vorm = { regular: [false, false], normal: [false, false], roman: [false, false], bold: [true, false], italic: [false, true], oblique: [false, true], 'bold italic': [true, true], 'bold oblique': [true, true] }[stijl]
+      if (!familie || !vorm) continue
+      aliassen[alsFontconfigNaam(ps)] ??= { familie, vet: vorm[0], cursief: vorm[1] }
+    }
+  }
+  return aliassen
+}
+
+export { alsFontconfigNaam }

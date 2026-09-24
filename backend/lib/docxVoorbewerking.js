@@ -21,6 +21,7 @@
 import { unzipSync, zipSync, strFromU8, strToU8 } from 'fflate'
 import { leesRelaties, verwijderBedekteVormen } from './verborgenVormen.js'
 import { standaardAlineastijl, standaardstijlInTekstvakken } from './tekstvakStijl.js'
+import { pasLettertypeAliassenToe } from './lettertypeNamen.js'
 
 /** Zip-onderdelen die getransformeerd worden; de rest passeert onaangeroerd. */
 const WORD_PART = /^word\/(?:document|header\d*|footer\d*)\.xml$/
@@ -141,9 +142,17 @@ function relsPad(naam) {
   return `${naam.slice(0, i)}/_rels/${naam.slice(i + 1)}.rels`
 }
 
+/** Onderdelen buiten body/kop/voet waar ook lettertypenamen in staan. */
+const STIJL_PART = /^word\/(?:styles|numbering)\.xml$/
+
 /**
  * Voert de voorbewerking uit op de ruwe DOCX-bytes.
- * @returns {{ docx: Uint8Array, vervangingen: number, vormenVerwijderd: number, tekstvakAlineas: number, lettertypen: string[] }}
+ * @param {Uint8Array} docxBytes
+ * @param {{ lettertypeAliassen?: Record<string, { familie: string, vet: boolean, cursief: boolean }> }} [opties]
+ *   `lettertypeAliassen`: uit lettertypeAliassen() over de fontbestanden van
+ *   deze server — namen die LibreOffice anders niet vindt (zie lettertypeNamen.js).
+ * @returns {{ docx: Uint8Array, vervangingen: number, vormenVerwijderd: number, tekstvakAlineas: number, lettertypenOmgezet: Record<string, number>, lettertypen: string[] }}
+ *   `lettertypenOmgezet`: per omgezette naam het aantal opmaakblokken.
  *   `tekstvakAlineas`: alinea's in een tekstvak die de standaardstijl expliciet
  *   kregen, zodat LibreOffice er niet de docDefaults op zet (zie tekstvakStijl.js).
  *   `vormenVerwijderd`: vormen die in Word volledig onder een dekkende vorm
@@ -151,7 +160,7 @@ function relsPad(naam) {
  *   `lettertypen`: de door het document gevraagde lettertypen, gesorteerd en
  *   zonder symboollettertypen.
  */
-export function voorbewerkDocx(docxBytes) {
+export function voorbewerkDocx(docxBytes, { lettertypeAliassen = {} } = {}) {
   let onderdelen
   try {
     onderdelen = unzipSync(docxBytes instanceof Uint8Array ? docxBytes : new Uint8Array(docxBytes))
@@ -166,6 +175,12 @@ export function voorbewerkDocx(docxBytes) {
   let vervangingen = 0
   let vormenVerwijderd = 0
   let tekstvakAlineas = 0
+  const lettertypenOmgezet = {}
+  const aliassen = (xml) => {
+    const r = pasLettertypeAliassenToe(xml, lettertypeAliassen)
+    for (const [naam, n] of Object.entries(r.omgezet)) lettertypenOmgezet[naam] = (lettertypenOmgezet[naam] ?? 0) + n
+    return r.xml
+  }
   const standaardStijl = onderdelen['word/styles.xml'] ? standaardAlineastijl(strFromU8(onderdelen['word/styles.xml'])) : null
   const gevraagd = new Set()
   const stijlen = new Set()
@@ -179,24 +194,28 @@ export function voorbewerkDocx(docxBytes) {
       vormenVerwijderd += zichtbaar.verwijderd
       const gestyled = standaardstijlInTekstvakken(zichtbaar.xml, standaardStijl)
       tekstvakAlineas += gestyled.aangepast
-      const resultaat = transformeerDocumentXml(gestyled.xml)
+      const resultaat = transformeerDocumentXml(aliassen(gestyled.xml))
       vervangingen += resultaat.vervangingen
       uitvoer[naam] = strToU8(resultaat.xml)
       const gebruikt = lettertypenInOnderdeel(resultaat.xml)
       for (const f of gebruikt.fonts) gevraagd.add(f)
       for (const s of gebruikt.stijlen) stijlen.add(s)
+    } else if (STIJL_PART.test(naam) && Object.keys(lettertypeAliassen).length) {
+      uitvoer[naam] = strToU8(aliassen(strFromU8(bytes)))
     } else {
       uitvoer[naam] = bytes
     }
   }
 
-  if (onderdelen['word/styles.xml']) {
-    for (const f of lettertypenUitStijlen(strFromU8(onderdelen['word/styles.xml']), stijlen)) gevraagd.add(f)
+  // Na de omzetting gelezen: de vergelijking met de PDF gaat over wat
+  // LibreOffice gevraagd wordt, niet over de naam die alleen Word kent.
+  if (uitvoer['word/styles.xml']) {
+    for (const f of lettertypenUitStijlen(strFromU8(uitvoer['word/styles.xml']), stijlen)) gevraagd.add(f)
   }
 
   const lettertypen = [...gevraagd].filter((f) => f && !SYMBOOL_LETTERTYPEN.test(f)).sort((a, b) => a.localeCompare(b, 'nl'))
 
-  return { docx: zipSync(uitvoer), vervangingen, vormenVerwijderd, tekstvakAlineas, lettertypen }
+  return { docx: zipSync(uitvoer), vervangingen, vormenVerwijderd, tekstvakAlineas, lettertypenOmgezet, lettertypen }
 }
 
 export class DocxOngeldig extends Error {

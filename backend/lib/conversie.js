@@ -19,7 +19,7 @@ import path from 'node:path'
 import { DocxOngeldig, voorbewerkDocx } from './docxVoorbewerking.js'
 import { RenderFout, docxNaarPdf } from './docxNaarPdf.js'
 import { lettertypenInPdf, plaatsAnkers } from './pdfCheckboxAnkers.js'
-import { beschikbareLettertypen, vergelijkLettertypen } from './lettertypen.js'
+import { beschikbareLettertypen, lettertypeAliassen, vergelijkLettertypen } from './lettertypen.js'
 
 /** Zelfde grens als `converter.max-file-size-mb=25` in de PoC. */
 export const MAX_DOCX_BYTES = 25 * 1024 * 1024
@@ -104,9 +104,12 @@ export async function converteerOfferte({ bestandsnaam, docx }) {
     const start = Date.now()
     const werkmap = await mkdtemp(path.join(os.tmpdir(), 'ds-checkbox-'))
     try {
+      // Eerst de fontbestanden: de voorbewerking zet namen die LibreOffice
+      // daarin niet als familie vindt om (DaxPro-Bold → DaxPro + vet).
+      const fonts = await beschikbareLettertypen()
       let voorbewerkt
       try {
-        voorbewerkt = voorbewerkDocx(docx)
+        voorbewerkt = voorbewerkDocx(docx, { lettertypeAliassen: lettertypeAliassen(fonts) })
       } catch (e) {
         if (e instanceof DocxOngeldig) throw new ConversieFout('VALIDATION', e.message, { status: 400 })
         throw e
@@ -116,7 +119,10 @@ export async function converteerOfferte({ bestandsnaam, docx }) {
       const docxPad = path.join(werkmap, 'voorbewerkt.docx')
       await writeFile(docxPad, voorbewerkt.docx)
 
-      const fontBestanden = (await beschikbareLettertypen()).map((f) => f.pad)
+      for (const [naam, n] of Object.entries(voorbewerkt.lettertypenOmgezet)) {
+        console.log(`Lettertypenaam omgezet: ${naam} (${n}×) → familie + snit, anders valt LibreOffice terug`)
+      }
+      const fontBestanden = fonts.map((f) => f.pad)
       let render
       try {
         render = await docxNaarPdf({ docxPad, werkmap, fontBestanden, timeoutMs: TIMEOUT_MS })

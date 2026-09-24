@@ -291,6 +291,22 @@ De keten, per upload, in `backend/lib/`:
    "MyLinde" en "Nacalculatie" op de leveringspagina's). Dat hoort in het
    sjabloon opgelost te worden, niet hier: de converter volgt Word. Tests in
    `test/tekstvakStijl.test.js`.
+
+   En **`lettertypeNamen.js`** zet lettertypenamen om die LibreOffice niet als
+   familie vindt, op basis van de fontbestanden van deze server
+   (`lettertypeAliassen()` in `lettertypen.js`, daarom haalt `conversie.js` de
+   lettertypen nu vóór de voorbewerking op). Aanleiding (2026-09-24): het
+   document vraagt `DaxPro-Bold`, maar dat is alleen de PostScript-naam; voor
+   fontconfig heet dat bestand familie "DaxPro", stijl Bold. LibreOffice viel
+   terug op **NotoSans** ("Datum:", "Offerte:", "Telefoonnummer:", "John
+   Mestrom"), terwijl de statuskaart "DaxPro-Bold aanwezig" meldde (die telt
+   ook PostScript-namen) en de lettertype-vergelijking niets zag (de PDF had
+   DaxPro-Bold al van `DaxPro` + vet elders). Nu: `DaxPro-Bold` → `DaxPro` +
+   `<w:b/>`, in document/kop/voet én `styles.xml`/`numbering.xml`. Alleen
+   PostScript-namen die geen familie zijn, en alleen snitten die DOCX kan vragen
+   (Regular/Bold/Italic/Bold Italic). Nagebootst met DejaVuSans-Bold (zelfde
+   opbouw): vóór regular-terugval, erna de Bold-snit. Tests in
+   `test/lettertypeNamen.test.js`.
 2. **`docxNaarPdf.js`** (port van `DocxToPdfService.java`) — LibreOffice
    headless met per conversie een **eigen tijdelijk gebruikersprofiel**
    (`-env:UserInstallation`; anders weigert LO een tweede instantie en botsen
@@ -480,7 +496,7 @@ cd frontend && npm run check:i18n
 - `backend/test/migraties.test.js` — idempotentie (drie keer draaien) en een
   gesloten nummerreeks.
 - `backend/test/docxVoorbewerking.test.js`, `verborgenVormen.test.js`,
-  `tekstvakStijl.test.js`, `pdfCheckboxAnkers.test.js`, `lettertypen.test.js` — ports van de Java-tests uit `esign_motrac` plus de
+  `tekstvakStijl.test.js`, `lettertypeNamen.test.js`, `pdfCheckboxAnkers.test.js`, `lettertypen.test.js` — ports van de Java-tests uit `esign_motrac` plus de
   lettertype-laag; pure logica, geen DB of LibreOffice (de test-PDF wordt met
   pdf-lib + DejaVu Sans gebouwd).
 - `backend/test/conversie.test.js` — de conversie over de echte server:
