@@ -36,6 +36,21 @@ export interface ConversieResultaat {
    * Optioneel: een oudere backend stuurt het veld niet mee.
    */
   ontbrekendeAfbeeldingen?: string[]
+  /** Gekoppelde afbeeldingen die in de PDF zijn ingesloten (beeldbank + meegestuurd). */
+  afbeeldingenIngesloten?: number
+}
+
+/** Een gekoppelde afbeelding die de app uit de map van de gebruiker meestuurt. */
+export interface MeegestuurdeAfbeelding {
+  /** De naam zoals de .docx hem koppelt, zonder pad. */
+  bestandsnaam: string
+  base64: string
+}
+
+/** Antwoord van POST /api/conversies/afbeeldingen: wat heeft de beeldbank op de server? */
+export interface BeeldbankAntwoord {
+  gevonden: string[]
+  ontbrekend: string[]
 }
 
 /** Antwoord van GET /api/conversies/status. */

@@ -97,8 +97,8 @@ export function gekoppeldeAfbeeldingenInDocx(docxBytes) {
   return [...namen]
 }
 
-async function indexeer(map, index, diepte = 0) {
-  if (diepte > MAX_DIEPTE || index.size >= MAX_BESTANDEN) return
+async function indexeer(map, idx, diepte = 0) {
+  if (diepte > MAX_DIEPTE || idx.size >= MAX_BESTANDEN) return
   let items
   try {
     items = await readdir(map, { withFileTypes: true })
@@ -107,12 +107,66 @@ async function indexeer(map, index, diepte = 0) {
   }
   for (const item of items) {
     const pad = path.join(map, item.name)
-    if (item.isDirectory()) await indexeer(pad, index, diepte + 1)
+    if (item.isDirectory()) await indexeer(pad, idx, diepte + 1)
     else if (item.isFile() && bestandsnaamUitDoel(item.name)) {
       // Eerste treffer wint (mappen in opgegeven volgorde, alfabetisch binnen een map).
-      if (!index.has(item.name.toLowerCase())) index.set(item.name.toLowerCase(), pad)
+      if (!idx.has(item.name.toLowerCase())) idx.set(item.name.toLowerCase(), pad)
     }
   }
+}
+
+async function index(mappen) {
+  const idx = new Map()
+  for (const map of mappen) await indexeer(map, idx)
+  return idx
+}
+
+/**
+ * Alleen: welke van deze namen heeft de beeldbank? Leest geen bestanden — voor
+ * `POST /api/conversies/afbeeldingen`, waarmee de app vóór de conversie weet of
+ * hij de gebruiker om de map moet vragen.
+ * @param {string[]} namen
+ * @returns {Promise<{ gevonden: string[], ontbrekend: string[] }>}
+ */
+export async function beeldbankHeeft(namen, mappen = afbeeldingMappen()) {
+  if (!namen.length) return { gevonden: [], ontbrekend: [] }
+  const idx = await index(mappen)
+  return {
+    gevonden: namen.filter((n) => idx.has(n.toLowerCase())),
+    ontbrekend: namen.filter((n) => !idx.has(n.toLowerCase())),
+  }
+}
+
+/**
+ * Een bestandsnaam zoals de app hem meestuurt: alleen een naam, geen pad, en
+ * een beeldformaat uit BEELD_MIME. Alles daarbuiten weigert de route.
+ */
+export function isVeiligeBeeldnaam(naam) {
+  return typeof naam === 'string' && naam.length > 0 && naam.length <= 255
+    && !/[\\/\0]/.test(naam) && bestandsnaamUitDoel(naam) === naam
+}
+
+/**
+ * Vult wat de beeldbank niet had aan met de afbeeldingen die de app uit de
+ * map van de gebruiker meestuurde. De beeldbank blijft eerste keus: een
+ * meegestuurde afbeelding telt alleen voor een naam die daar ontbrak.
+ * @param {{ gevonden: Record<string, Uint8Array>, ontbrekend: string[] }} zoek zoekAfbeeldingen()
+ * @param {Record<string, Uint8Array>} meegestuurd op kleine-letternaam
+ */
+export function vulAanMetMeegestuurd(zoek, meegestuurd = {}) {
+  const gevonden = { ...zoek.gevonden }
+  const ontbrekend = []
+  let meegestuurdGebruikt = 0
+  for (const naam of zoek.ontbrekend) {
+    const bytes = meegestuurd[naam.toLowerCase()]
+    if (bytes?.length) {
+      gevonden[naam.toLowerCase()] = bytes
+      meegestuurdGebruikt++
+    } else {
+      ontbrekend.push(naam)
+    }
+  }
+  return { gevonden, ontbrekend, meegestuurdGebruikt }
 }
 
 /**
@@ -124,11 +178,10 @@ async function indexeer(map, index, diepte = 0) {
 export async function zoekAfbeeldingen(namen, mappen = afbeeldingMappen()) {
   const gevonden = {}
   if (!namen.length) return { gevonden, ontbrekend: [] }
-  const index = new Map()
-  for (const map of mappen) await indexeer(map, index)
+  const idx = await index(mappen)
   const ontbrekend = []
   for (const naam of namen) {
-    const pad = index.get(naam.toLowerCase())
+    const pad = idx.get(naam.toLowerCase())
     if (!pad) {
       ontbrekend.push(naam)
       continue

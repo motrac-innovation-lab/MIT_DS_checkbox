@@ -230,7 +230,8 @@ echte grens, een `isAdmin`-check in de UI alleen cosmetiek.
 | `GET /api/data` | bearer | Bootstrap: `config` (alleen `CONFIG_WHITELIST`, nu leeg). |
 | `POST /api/feedback` | bearer | Doorgifte van de FeedbackWidget naar Motrac-beheer; eigen 12mb-body-limiet vanwege screenshots. |
 | `GET /api/conversies/status` | bearer | Render-engine (LibreOffice gevonden + versie, of Gotenberg bereikbaar) en de aanwezige lettertypen; welke van DaxPro / DaxPro-Bold / DaxPro-Light / DaxPro-Medium ontbreken. `lettertypen.viaFontmappen` is `false` bij Gotenberg: de fontmappen van deze server gaan dan niet mee in de render en de kaart toont de families als "onbekend" in plaats van "ontbreekt". Voedt de statuskaart. |
-| `POST /api/conversies` | bearer | De conversie. Body `{ bestandsnaam, docxBase64 }` (eigen 35mb-parser vóór de generieke), antwoord `{ bestandsnaam, aantalCheckboxen, pdfBase64, lettertypen: { gevraagd, inPdf, vervangen }, engine, duurMs, symbolenVervangen, ankersGeschat, vormenVerwijderd, ontbrekendeAfbeeldingen }`. Fouten: `VALIDATION` 400/413, `CONVERSIE_ENGINE_ONBESCHIKBAAR` 503, `CONVERSIE_MISLUKT` 422, `CONVERSIE_TIMEOUT` 504, `CONVERSIE_DRUK` 503. |
+| `POST /api/conversies/afbeeldingen` | bearer | Welke gekoppelde afbeeldingen (`E:\…` in de .docx) heeft de beeldbank op de server? Body `{ namen }` (max. 50, alleen bestandsnamen), antwoord `{ gevonden, ontbrekend }`. Leest alleen de index, geen bestanden. De app vraagt de gebruiker alleen om de map als hier iets ontbreekt. |
+| `POST /api/conversies` | bearer | De conversie. Body `{ bestandsnaam, docxBase64, afbeeldingen? }` (eigen 35mb-parser vóór de generieke; `afbeeldingen` = `[{ bestandsnaam, base64 }]` uit de map van de gebruiker, max. 50), antwoord `{ bestandsnaam, aantalCheckboxen, pdfBase64, lettertypen: { gevraagd, inPdf, vervangen }, engine, duurMs, symbolenVervangen, ankersGeschat, vormenVerwijderd, afbeeldingenIngesloten, ontbrekendeAfbeeldingen }`. Fouten: `VALIDATION` 400/413, `CONVERSIE_ENGINE_ONBESCHIKBAAR` 503, `CONVERSIE_MISLUKT` 422, `CONVERSIE_TIMEOUT` 504, `CONVERSIE_DRUK` 503. |
 | `GET /api/conversies` | `requireAdmin` | Het conversies-logboek (migratie 0003), server-side gepagineerd; metadata, nooit documentinhoud. |
 | `GET /api/audit-log` | `requireAdmin` | Server-side gepagineerd logboek (`logAction`/`logActionZachtjes`). |
 | `PUT /api/config/:key` | `requireAdmin` | Alleen `CONFIG_WHITELIST`-sleutels (fail-closed). |
@@ -319,6 +320,24 @@ De keten, per upload, in `backend/lib/`:
    `ontbrekendeAfbeeldingen` van het antwoord en als waarschuwing in de app.
    `conversie.js` zoekt ze vóór de voorbewerking (`gekoppeldeAfbeeldingenInDocx`
    pakt alleen de `.rels` uit). Tests in `test/gekoppeldeAfbeeldingen.test.js`.
+
+   **Aanvulling vanuit de browser** (Mark, 2026-09-24: "de gebruiker heeft
+   toegang tot de E-schijf"). De server kan niet bij E:, en een webpagina mag
+   niets van de schijf lezen dat de gebruiker niet zelf aanwijst. Daarom leest
+   de app bij het kiezen van de .docx zelf de koppelingen uit
+   (`frontend/src/lib/docxKoppelingen.ts`: een mini-zip-lezer op
+   `DecompressionStream`, alleen de `.rels`), vraagt de beeldbank via
+   `POST /api/conversies/afbeeldingen` wat hij heeft, en vraagt alleen bij een
+   tekort om de map AFBEELDINGEN CPQ (`lib/afbeeldingenMap.ts`, File System
+   Access API). Edge/Chrome onthouden die map in IndexedDB (`mit-ds-checkbox` →
+   `mappen`), dus de volgende keer is het één klik op "Toestaan" of niets.
+   Andere browsers: de losse bestanden kiezen. Alleen de benodigde bestanden
+   gaan mee (`afbeeldingen` in de body). **De beeldbank blijft eerste keus**: een
+   meegestuurde afbeelding telt alleen voor een naam die daar ontbrak
+   (`vulAanMetMeegestuurd`). UI: `modules/conversie/GekoppeldeAfbeeldingen.tsx`
+   + `useGekoppeldeAfbeeldingen.ts`. Getest in Chromium met een echte
+   map-handle uit het Origin Private File System in plaats van de native
+   kiezer (headless kan die niet tonen); de echte E-schijf in Edge nog niet.
 2. **`docxNaarPdf.js`** (port van `DocxToPdfService.java`) — LibreOffice
    headless met per conversie een **eigen tijdelijk gebruikersprofiel**
    (`-env:UserInstallation`; anders weigert LO een tweede instantie en botsen

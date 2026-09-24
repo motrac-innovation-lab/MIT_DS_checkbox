@@ -49,6 +49,10 @@ in `/uploads/afbeeldingen/` en werk die bij als er modellen bijkomen. Wat er
 niet in staat, noemt het conversie-antwoord in `ontbrekendeAfbeeldingen` en de
 app toont het als waarschuwing — in de PDF staat daar dan een lege vlek. Geldt
 voor beide routes: het insluiten gebeurt vóór de render, in de backend.
+Ontbreekt een afbeelding in de beeldbank (of is er geen beeldbank), dan vraagt
+de app de gebruiker bij het uploaden om de map `AFBEELDINGEN CPQ` op de
+E-schijf en stuurt hij de benodigde bestanden zelf mee — de beeldbank is dus
+een gemak, geen vereiste.
 
 **Geheugen.** Eén LibreOffice-render piekt op 400–600 MB; standaard 2
 gelijktijdige renders per worker (`CONVERSIE_MAX_GELIJKTIJDIG`), en cluster

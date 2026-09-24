@@ -20,7 +20,7 @@ import { DocxOngeldig, voorbewerkDocx } from './docxVoorbewerking.js'
 import { RenderFout, docxNaarPdf } from './docxNaarPdf.js'
 import { lettertypenInPdf, plaatsAnkers } from './pdfCheckboxAnkers.js'
 import { beschikbareLettertypen, lettertypeAliassen, vergelijkLettertypen } from './lettertypen.js'
-import { gekoppeldeAfbeeldingenInDocx, zoekAfbeeldingen } from './gekoppeldeAfbeeldingen.js'
+import { gekoppeldeAfbeeldingenInDocx, vulAanMetMeegestuurd, zoekAfbeeldingen } from './gekoppeldeAfbeeldingen.js'
 
 /** Zelfde grens als `converter.max-file-size-mb=25` in de PoC. */
 export const MAX_DOCX_BYTES = 25 * 1024 * 1024
@@ -84,15 +84,17 @@ export function pdfNaam(docxNaam) {
 // ---- De conversie -------------------------------------------------------------------
 
 /**
- * @param {{ bestandsnaam: string, docx: Uint8Array }} invoer
+ * @param {{ bestandsnaam: string, docx: Uint8Array, meegestuurdeAfbeeldingen?: Record<string, Uint8Array> }} invoer
+ *   `meegestuurdeAfbeeldingen`: gekoppelde afbeeldingen die de app uit de map
+ *   van de gebruiker meestuurde (op kleine-letternaam); aanvulling op de beeldbank.
  * @returns {Promise<{
  *   bestandsnaam: string, aantalCheckboxen: number, pdf: Uint8Array,
  *   lettertypen: { gevraagd: string[], inPdf: string[], vervangen: string[] },
  *   engine: string, duurMs: number, symbolenVervangen: number, ankersGeschat: number,
- *   vormenVerwijderd: number, ontbrekendeAfbeeldingen: string[]
+ *   vormenVerwijderd: number, afbeeldingenIngesloten: number, ontbrekendeAfbeeldingen: string[]
  * }>}
  */
-export async function converteerOfferte({ bestandsnaam, docx }) {
+export async function converteerOfferte({ bestandsnaam, docx, meegestuurdeAfbeeldingen = {} }) {
   const naam = saneerBestandsnaam(bestandsnaam)
   if (!naam) throw new ConversieFout('VALIDATION', 'Selecteer eerst een .docx-bestand.', { status: 400 })
   if (!/\.docx$/i.test(naam)) throw new ConversieFout('VALIDATION', 'Alleen .docx-bestanden worden ondersteund.', { status: 400 })
@@ -108,8 +110,10 @@ export async function converteerOfferte({ bestandsnaam, docx }) {
       // Eerst de fontbestanden: de voorbewerking zet namen die LibreOffice
       // daarin niet als familie vindt om (DaxPro-Bold → DaxPro + vet).
       const fonts = await beschikbareLettertypen()
-      // Gekoppelde afbeeldingen (E:\… op een Motrac-pc) uit de beeldbank op de server.
-      const afbeeldingen = await zoekAfbeeldingen(gekoppeldeAfbeeldingenInDocx(docx))
+      // Gekoppelde afbeeldingen (E:\… op een Motrac-pc): eerst de beeldbank op
+      // de server, dan wat de app uit de map van de gebruiker meestuurde.
+      const afbeeldingen = vulAanMetMeegestuurd(await zoekAfbeeldingen(gekoppeldeAfbeeldingenInDocx(docx)), meegestuurdeAfbeeldingen)
+      if (afbeeldingen.meegestuurdGebruikt) console.log(`${afbeeldingen.meegestuurdGebruikt} gekoppelde afbeelding(en) uit de map van de gebruiker`)
       if (afbeeldingen.ontbrekend.length) {
         console.warn(`Gekoppelde afbeelding(en) niet in de afbeeldingenmap: ${afbeeldingen.ontbrekend.join(', ')}`)
       }
@@ -166,6 +170,7 @@ export async function converteerOfferte({ bestandsnaam, docx }) {
         symbolenVervangen: voorbewerkt.vervangingen,
         ankersGeschat: gestempeld.ankers.filter((a) => !a.exact).length,
         vormenVerwijderd: voorbewerkt.vormenVerwijderd,
+        afbeeldingenIngesloten: voorbewerkt.afbeeldingenIngesloten,
         ontbrekendeAfbeeldingen: afbeeldingen.ontbrekend,
       }
     } finally {

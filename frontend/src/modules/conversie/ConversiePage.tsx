@@ -6,6 +6,8 @@ import { useData } from '../../context/DataContext'
 import { ApiError } from '../../lib/api'
 import { base64NaarBlob, leesBestandAlsBase64, leesbareGrootte } from '../../lib/bestanden'
 import type { ConversieResultaat, ConversieStatus } from '../../types'
+import { GekoppeldeAfbeeldingen } from './GekoppeldeAfbeeldingen'
+import { useGekoppeldeAfbeeldingen } from './useGekoppeldeAfbeeldingen'
 
 /**
  * De ene functie van de app, geport uit `esign_motrac` (upload.html +
@@ -36,6 +38,9 @@ export function ConversiePage() {
   // veld en maakt zo de gekozen bestandsnaam leeg bij "Nieuw document".
   const [invoerSleutel, setInvoerSleutel] = useState(0)
   const dropzoneRef = useRef<HTMLDivElement>(null)
+  // Afbeeldingen die de .docx alleen koppelt aan de netwerkschijf (E:\…):
+  // beeldbank op de server, anders uit de map van de gebruiker.
+  const koppelingen = useGekoppeldeAfbeeldingen(bestand)
 
   const laadStatus = useCallback(async () => {
     setStatusFout(null)
@@ -98,7 +103,7 @@ export function ConversiePage() {
     setFout(null)
     setResultaat(null)
     try {
-      const r = await data.converteer(bestand.name, await leesBestandAlsBase64(bestand))
+      const r = await data.converteer(bestand.name, await leesBestandAlsBase64(bestand), await koppelingen.meeTeSturen())
       setResultaat(r)
       // Meteen aanbieden — dat was in de PoC een extra klik; de knop hieronder
       // blijft voor een tweede download.
@@ -216,6 +221,8 @@ export function ConversiePage() {
             )}
           </div>
 
+          <GekoppeldeAfbeeldingen koppelingen={koppelingen} uitgeschakeld={bezig} />
+
           {fout && (
             <Alert tone="bad" titel={t('conversie.fout.titel')}>
               {fout.message}
@@ -226,7 +233,7 @@ export function ConversiePage() {
           {bezig && <Progress label={t('conversie.bezig')} />}
 
           <div className="offerte-acties">
-            <Button variant="primary" type="submit" data-rondleiding="conversie-knop" disabled={!bestand || bezig || !serverKlaar}>
+            <Button variant="primary" type="submit" data-rondleiding="conversie-knop" disabled={!bestand || bezig || !serverKlaar || Boolean(koppelingen.stand?.bezig)}>
               {bezig ? t('conversie.bezig') : t('conversie.knop')}
             </Button>
             {(bestand || resultaat) && !bezig && (

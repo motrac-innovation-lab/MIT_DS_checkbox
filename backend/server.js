@@ -30,6 +30,7 @@ import { runMigrations } from './lib/migrate.js'
 import { ConversieFout, MAX_DOCX_BYTES, converteerOfferte } from './lib/conversie.js'
 import { ENGINE as DOCX_PDF_ENGINE, detecteerLibreOffice, engineStatus } from './lib/docxNaarPdf.js'
 import { VEREISTE_LETTERTYPEN, beschikbareLettertypen, fontMappen, ontbrekendeVereisteLettertypen } from './lib/lettertypen.js'
+import { beeldbankHeeft, isVeiligeBeeldnaam } from './lib/gekoppeldeAfbeeldingen.js'
 
 // De slug die deze app in Motrac Toegangsbeheer heeft (toegekend 2026-09-22).
 // Moet gelijk zijn aan DEFAULT_SLUG in frontend/src/lib/motracAuth.ts en aan
@@ -496,7 +497,36 @@ app.get('/api/conversies/status', ah(async (req, res) => {
   })
 }))
 
-// De conversie zelf. Body: { bestandsnaam, docxBase64 }; antwoord: de PDF als
+// Welke gekoppelde afbeeldingen (E:\… in de .docx) heeft de beeldbank op de
+// server? Body: { namen: string[] } — de app leest die namen zelf uit de .docx
+// en vraagt de gebruiker alleen om de map als hier iets ontbreekt. Leest geen
+// bestanden, alleen de index van de beeldbank; bearer (elke rol).
+const MAX_AFBEELDINGEN = 50
+app.post('/api/conversies/afbeeldingen', ah(async (req, res) => {
+  const namen = req.body?.namen
+  if (!Array.isArray(namen) || namen.length > MAX_AFBEELDINGEN || !namen.every(isVeiligeBeeldnaam)) {
+    return sendErr(res, apiError('VALIDATION', `Geef maximaal ${MAX_AFBEELDINGEN} bestandsnamen van afbeeldingen, zonder pad.`, 400))
+  }
+  res.json(await beeldbankHeeft([...new Set(namen)]))
+}))
+
+/**
+ * Meegestuurde afbeeldingen uit de body: [{ bestandsnaam, base64 }] → op
+ * kleine-letternaam. Strikt: alleen een bestandsnaam (geen pad), strikte
+ * base64, niet leeg. null = ongeldig.
+ */
+function leesMeegestuurdeAfbeeldingen(lijst) {
+  if (lijst === undefined) return {}
+  if (!Array.isArray(lijst) || lijst.length > MAX_AFBEELDINGEN) return null
+  const uit = {}
+  for (const a of lijst) {
+    if (!isVeiligeBeeldnaam(a?.bestandsnaam) || typeof a?.base64 !== 'string' || !a.base64 || !/^[A-Za-z0-9+/]*={0,2}$/.test(a.base64)) return null
+    uit[a.bestandsnaam.toLowerCase()] = new Uint8Array(Buffer.from(a.base64, 'base64'))
+  }
+  return uit
+}
+
+// De conversie zelf. Body: { bestandsnaam, docxBase64, afbeeldingen? }; antwoord: de PDF als
 // base64 plus het aantal gevonden checkboxen en de lettertype-vergelijking.
 // Elke uitkomst (ook een mislukking) komt in het conversies-logboek, zonder
 // documentinhoud.
@@ -512,9 +542,14 @@ app.post('/api/conversies', ah(async (req, res) => {
     if (/^[A-Za-z0-9+/]*={0,2}$/.test(docxBase64)) docx = new Uint8Array(Buffer.from(docxBase64, 'base64'))
   }
 
+  // Gekoppelde afbeeldingen die de app uit de map van de gebruiker meestuurt
+  // (zie POST /api/conversies/afbeeldingen); aanvulling op de beeldbank.
+  const meegestuurdeAfbeeldingen = leesMeegestuurdeAfbeeldingen(req.body?.afbeeldingen)
+
   try {
     if (!docx) throw new ConversieFout('VALIDATION', 'Selecteer eerst een .docx-bestand.', { status: 400 })
-    const resultaat = await converteerOfferte({ bestandsnaam, docx })
+    if (!meegestuurdeAfbeeldingen) throw new ConversieFout('VALIDATION', 'Een meegestuurde afbeelding is ongeldig (alleen een bestandsnaam en de inhoud, maximaal 50).', { status: 400 })
+    const resultaat = await converteerOfferte({ bestandsnaam, docx, meegestuurdeAfbeeldingen })
     await registreerConversie(req, {
       bestandsnaam: resultaat.bestandsnaam.replace(/\.pdf$/i, '.docx'),
       status: 'geslaagd',
@@ -533,6 +568,7 @@ app.post('/api/conversies', ah(async (req, res) => {
       symbolenVervangen: resultaat.symbolenVervangen,
       ankersGeschat: resultaat.ankersGeschat,
       vormenVerwijderd: resultaat.vormenVerwijderd,
+      afbeeldingenIngesloten: resultaat.afbeeldingenIngesloten,
       ontbrekendeAfbeeldingen: resultaat.ontbrekendeAfbeeldingen,
     })
   } catch (e) {
