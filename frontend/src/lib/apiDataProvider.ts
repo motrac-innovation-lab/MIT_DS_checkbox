@@ -4,7 +4,7 @@
 // request() al als ApiError teruggeeft.
 import { request } from './api'
 import type { DataProvider } from './dataProvider'
-import type { BeeldbankAntwoord, ConversieRegel, ConversieResultaat, ConversieStatus, MeegestuurdeAfbeelding, Pagina } from '../types'
+import type { BeeldbankAntwoord, BeeldbankLijst, BeeldbankUpload, BeeldbankVergelijking, ConversieRegel, ConversieResultaat, ConversieStatus, MeegestuurdeAfbeelding, Pagina } from '../types'
 
 export class ApiDataProvider implements DataProvider {
   conversieStatus(): Promise<ConversieStatus> {
@@ -26,5 +26,22 @@ export class ApiDataProvider implements DataProvider {
   conversies(page: number, pageSize: number): Promise<Pagina<ConversieRegel>> {
     const q = new URLSearchParams({ page: String(page), pageSize: String(pageSize) })
     return request<Pagina<ConversieRegel>>(`/api/conversies?${q}`)
+  }
+
+  beeldbankLijst(zoek: string, page: number, pageSize: number): Promise<BeeldbankLijst> {
+    const q = new URLSearchParams({ page: String(page), pageSize: String(pageSize), ...(zoek ? { zoek } : {}) })
+    return request<BeeldbankLijst>(`/api/beeldbank?${q}`)
+  }
+
+  beeldbankVergelijk(bestanden: { bestandsnaam: string, grootte: number }[]): Promise<BeeldbankVergelijking> {
+    return request<BeeldbankVergelijking>('/api/beeldbank/vergelijk', { method: 'POST', body: { bestanden } })
+  }
+
+  beeldbankUpload(bestanden: MeegestuurdeAfbeelding[]): Promise<BeeldbankUpload> {
+    return request<BeeldbankUpload>('/api/beeldbank', { method: 'POST', body: { bestanden } })
+  }
+
+  async beeldbankVerwijder(naam: string): Promise<void> {
+    await request(`/api/beeldbank/${encodeURIComponent(naam)}`, { method: 'DELETE' })
   }
 }

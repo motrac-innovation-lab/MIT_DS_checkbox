@@ -51,7 +51,7 @@ export interface RondleidingStap {
 // Volgorde = de volgorde waarin je de app leert kennen: eerst wat iedereen hier
 // komt doen (een offerte omzetten), dan pas het logboek dat alleen een
 // beheerder ziet. Een gewone gebruiker is na zeven stappen klaar; een
-// beheerder krijgt er twee bij.
+// beheerder krijgt er drie bij (serverstatus, logboek, beeldbank).
 //
 // LET OP het formaat: `scripts/check-rondleiding.mjs` leest dit bestand als
 // TEKST (Node kan geen TypeScript importeren op de Node 20 van de deploy-job).
@@ -83,6 +83,7 @@ export const STAPPEN: RondleidingStap[] = [
 
   // ---- Beheerder: het conversielogboek -------------------------------------
   { id: 'geschiedenis', groep: 'logboek', route: '/geschiedenis', anker: '[data-rondleiding="geschiedenis-lijst"]', alleenAdmin: true },
+  { id: 'beeldbank', groep: 'logboek', route: '/beeldbank', anker: '[data-rondleiding="beeldbank-upload"]', alleenAdmin: true },
 
   // ---- Iedereen: afsluiten -------------------------------------------------
   // Geen anker: het Support-label hangt `position:fixed` tegen de rechterrand
